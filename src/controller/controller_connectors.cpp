@@ -38,31 +38,32 @@ namespace Controller {
   }
   
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
-    for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
-      if (it->second.isMember("option")){
-        if (p.isMember(it->first)){
-          if (it->second.isMember("type")){
-            if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
-              p[it->first] = p[it->first].asString();
+    argset.forEachMember([&] (const std::string & name, const JSON::Value & val) -> bool {
+      if (val.isMember("option")){
+        if (p.isMember(name)){
+          if (val.isMember("type")){
+            if (val["type"].asStringRef() == "str" && !p[name].isString()){
+              p[name] = p[name].asString();
             }
-            if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
-              p[it->first] = p[it->first].asString();
+            if ((val["type"].asStringRef() == "uint" || val["type"].asStringRef() == "int") && !p[name].isInt()){
+              p[name] = p[name].asString();
             }
           }
-          if (p[it->first].asStringRef().size() > 0){
-            argarr[argnum++] = (char*)(it->second["option"].c_str());
-            argarr[argnum++] = (char*)(p[it->first].c_str());
+          if (p[name].asStringRef().size() > 0){
+            argarr[argnum++] = (char*)(val["option"].c_str());
+            argarr[argnum++] = (char*)(p[name].c_str());
           }
         }else{
-          if (it->first == "debug"){
+          if (name == "debug"){
             static std::string debugLvlStr;
             debugLvlStr = JSON::Value((long long)Util::Config::printDebugLevel).asString();
-            argarr[argnum++] = (char*)(it->second["option"].c_str());
+            argarr[argnum++] = (char*)(val["option"].c_str());
             argarr[argnum++] = (char*)debugLvlStr.c_str();
           }
         }
       }
-    }
+      return true;
+    });
   }
   
   static inline void buildPipedArguments(JSON::Value & p, char * argarr[], JSON::Value & capabilities){
@@ -97,57 +98,56 @@ namespace Controller {
     int i;
 
     std::string tmp;
-    long long counter = 0;
-
-    for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
-      counter = ait - p.ArrBegin();
-      std::string prevOnline = ( *ait)["online"].asString();
-      #define connName (*ait)["connector"].asStringRef()
-      if ( !(*ait).isMember("connector") || connName == ""){
-        ( *ait)["online"] = "Missing connector name";
-        continue;
+    p.forEachIndice([&] (const unsigned int counter, JSON::Value & val) -> bool {
+      std::string prevOnline = val["online"].asString();
+      #define connName val["connector"].asStringRef()
+      if ( !val.isMember("connector") || connName == ""){
+        val["online"] = "Missing connector name";
+        return true;
       }
       
       if ( !capabilities["connectors"].isMember(connName)){
-        ( *ait)["online"] = "Not installed";
-        if (( *ait)["online"].asString() != prevOnline){
+        val["online"] = "Not installed";
+        if (val["online"].asString() != prevOnline){
           Log("WARN", connName + " connector is enabled but doesn't exist on system! Ignoring connector.");
         }
-        continue;
+        return true;
       }
       
       #define connCapa capabilities["connectors"][connName]
       
       if (connCapa.isMember("socket")){
-        ( *ait)["online"] = "Enabled";
-        continue;
+        val["online"] = "Enabled";
+        return true;
       }
       
       if (connCapa.isMember("required")){
         bool gotAll = true;
-        for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
-          if ( !(*ait).isMember(it->first) || (*ait)[it->first].asStringRef().size() < 1){
+        connCapa["required"].forEachMember([&] (const std::string & name, JSON::Value & opt) -> bool {
+          if ( !val.isMember(name) || val[name].asStringRef().size() < 1){
             gotAll = false;
-            ( *ait)["online"] = "Invalid configuration";
-            if (( *ait)["online"].asString() != prevOnline){
-              Log("WARN", connName + " connector is missing required parameter " + it->first + "! Ignoring connector.");
+            val["online"] = "Invalid configuration";
+            if (val["online"].asString() != prevOnline){
+              Log("WARN", connName + " connector is missing required parameter " + name + "! Ignoring connector.");
             }
-            break;
+            return false;
           }
-        }
-        if (!gotAll){continue;}
+          return true;
+        });
+        if (!gotAll){return true;}
       }
       
-      ( *ait).removeMember("online");
+      val.removeMember("online");
       /// \todo Check dependencies?
-
-      new_connectors[counter] = (*ait).toString();
+      
+      new_connectors[counter] = val.toString();
       if (Util::Procs::isActive(toConn(counter))){
-        ( *ait)["online"] = 1;
+        val["online"] = 1;
       }else{
-        ( *ait)["online"] = 0;
+        val["online"] = 0;
       }
-    }
+      return true;
+    });
 
     //shut down deleted/changed connectors
     for (iter = currentConnectors.begin(); iter != currentConnectors.end(); iter++){

@@ -63,11 +63,12 @@ namespace Controller {
         unsigned int i = 0;
         JSON::fromDTMI((const unsigned char*)streamIndex.mapped + 8, streamIndex.len - 8, i, data["meta"]);
         if (data["meta"].isMember("tracks") && data["meta"]["tracks"].size()){
-          for(JSON::ObjIter trackIt = data["meta"]["tracks"].ObjBegin(); trackIt != data["meta"]["tracks"].ObjEnd(); trackIt++){
-            trackIt->second.removeMember("fragments");
-            trackIt->second.removeMember("keys");
-            trackIt->second.removeMember("parts");
-          }
+          data["meta"]["tracks"].forEach([&] (JSON::Value & track) -> bool {
+            track.removeMember("fragments");
+            track.removeMember("keys");
+            track.removeMember("parts");
+            return true;
+          });
         }
       }
       return;
@@ -182,54 +183,53 @@ namespace Controller {
   ///\param data The stream configuration for the server.
   void CheckAllStreams(JSON::Value & data){
     long long int currTime = Util::epoch();
-    for (JSON::ObjIter jit = data.ObjBegin(); jit != data.ObjEnd(); jit++){
-      checkStream(jit->first, jit->second);
-      if (!jit->second.isMember("name")){
-        jit->second["name"] = jit->first;
+    data.forEachMember([&] (const std::string & name, JSON::Value & val) -> bool {
+      checkStream(name, val);
+      if (!val.isMember("name")){
+        val["name"] = name;
       }
-      if (!hasViewers(jit->first)){
-        if (jit->second.isMember("source") && jit->second["source"].asString().substr(0, 1) == "/" && jit->second.isMember("error")
-            && jit->second["error"].asString().substr(0,15) != "Stream offline:"){
-          jit->second["online"] = 2;
-        }else{
-          if (jit->second.isMember("error") && jit->second["error"].asString() == "Available"){
-            jit->second.removeMember("error");
+      if (!hasViewers(name)){
+        if (val.isMember("source") && val["source"].asString().substr(0, 1) == "/" && val.isMember("error")
+          && val["error"].asString().substr(0,15) != "Stream offline:"){
+          val["online"] = 2;
+          }else{
+            if (val.isMember("error") && val["error"].asString() == "Available"){
+              val.removeMember("error");
+            }
+            val["online"] = 0;
           }
-          jit->second["online"] = 0;
-        }
       }else{
         // assume all is fine
-        jit->second.removeMember("error");
-        jit->second["online"] = 1;
+        val.removeMember("error");
+        val["online"] = 1;
         // check if source is valid
         //if (jit->second.isMember("live") && !jit->second.isMember("meta") || !jit->second["meta"]){
-        if ( (jit->second.isMember("meta") && !jit->second["meta"].isMember("tracks"))){
-          jit->second["online"] = 0;
-          jit->second["error"] = "No (valid) source connected ";
+        if ( (val.isMember("meta") && !val["meta"].isMember("tracks"))){
+          val["online"] = 0;
+          val["error"] = "No (valid) source connected ";
         }else{
           // for live streams, keep track of activity
-          if (jit->second["meta"].isMember("live")){
+          if (val["meta"].isMember("live")){
             static std::map<std::string, liveCheck> checker;
             //check H264 tracks for optimality
-            if (jit->second.isMember("meta") && jit->second["meta"].isMember("tracks")){
-              for (JSON::ObjIter trIt = jit->second["meta"]["tracks"].ObjBegin(); trIt != jit->second["meta"]["tracks"].ObjEnd(); trIt++){
-                if (trIt->second["lastms"].asInt() > checker[jit->first].lastms){
-                  checker[jit->first].lastms = trIt->second["lastms"].asInt();
-                  checker[jit->first].last_active = currTime;
+            if (val.isMember("meta") && val["meta"].isMember("tracks")){
+              val["meta"]["tracks"].forEach([&] (JSON::Value & track) -> bool {
+                if (track["lastms"].asInt() > checker[name].lastms){
+                  checker[name].lastms = track["lastms"].asInt();
+                  checker[name].last_active = currTime;
                 }
-
-              }
             }
             // mark stream as offline if no activity for 5 seconds
             //if (jit->second.isMember("last_active") && jit->second["last_active"].asInt() < currTime - 5){
-            if (checker[jit->first].last_active < currTime - 5){
-              jit->second["online"] = 2;
-              jit->second["error"] = "Source not active";
+            if (checker[name].last_active < currTime - 5){
+              val["online"] = 2;
+              val["error"] = "Source not active";
             }
           }
         }
       }
-    }
+      return true;
+    });
     static JSON::Value strlist;
     bool changed = false;
     if (strlist["config"] != Storage["config"]){
@@ -247,35 +247,23 @@ namespace Controller {
   
   void AddStreams(JSON::Value & in, JSON::Value & out){
     //check for new streams and updates
-    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (out.isMember(jit->first)){
-        if ( !streamsEqual(jit->second, out[jit->first])){
-          out[jit->first].null();
-          out[jit->first]["name"] = jit->first;
-          out[jit->first]["source"] = jit->second["source"];
-          if (jit->second.isMember("DVR")){
-            out[jit->first]["DVR"] = jit->second["DVR"].asInt();
-          }
-          if (jit->second.isMember("cut")){
-            out[jit->first]["cut"] = jit->second["cut"].asInt();
-          }
-          out[jit->first]["updated"] = 1ll;
-          Log("STRM", std::string("Updated stream ") + jit->first);
-          checkStream(jit->first, out[jit->first]);
+    in.forEachMember([&] (const std::string & name, JSON::Value & val) -> bool {
+      if (!out.isMember(name) || !streamsEqual(val, out[name])){
+        out[name].null();
+        out[name]["name"] = name;
+        out[name]["source"] = val["source"];
+        if (val.isMember("DVR")){
+          out[name]["DVR"] = val["DVR"].asInt();
         }
-      }else{
-        out[jit->first]["name"] = jit->first;
-        out[jit->first]["source"] = jit->second["source"];
-        if (jit->second.isMember("DVR")){
-          out[jit->first]["DVR"] = jit->second["DVR"].asInt();
+        if (val.isMember("cut")){
+          out[name]["cut"] = val["cut"].asInt();
         }
-        if (jit->second.isMember("cut")){
-          out[jit->first]["cut"] = jit->second["cut"].asInt();
-        }
-        Log("STRM", std::string("New stream ") + jit->first);
-        checkStream(jit->first, out[jit->first]);
+        out[name]["updated"] = 1ll;
+        Log("STRM", std::string("Updated stream ") + name);
+        checkStream(name, out[name]);
       }
-    }
+      return true;
+    });
   }
 
   ///\brief Parse a given stream configuration.
@@ -328,35 +316,38 @@ namespace Controller {
   /// ~~~~~~~~~~~~~~~
   /// Through this request, ALL streams must always be configured. To remove a stream, simply leave it out of the request. To add a stream, simply add it to the request. To edit a stream, simply edit it in the request. The LTS edition has additional requests that allow per-stream changing of the configuration.
   void CheckStreams(JSON::Value & in, JSON::Value & out){
+    //update old-style configurations to new-style
+    in.forEach([&] (JSON::Value & val) -> bool {
+      if (val.isMember("channel")){
+        if ( !val.isMember("source")){
+          val["source"] = val["channel"]["URL"];
+        }
+        val.removeMember("channel");
+      }
+      if (val.isMember("preset")){
+        val.removeMember("preset");
+      }
+      return true;
+    });
+    
     //check for new streams and updates
     AddStreams(in, out);
 
     //check for deleted streams
     std::set<std::string> toDelete;
-    for (JSON::ObjIter jit = out.ObjBegin(); jit != out.ObjEnd(); jit++){
-      if ( !in.isMember(jit->first)){
-        toDelete.insert(jit->first);
-        Log("STRM", std::string("Deleted stream ") + jit->first);
+    out.forEachMember([&] (const std::string & name, const JSON::Value & val) -> bool {
+      if ( !in.isMember(name)){
+        toDelete.insert(name);
+        Log("STRM", std::string("Deleted stream ") + name);
       }
-    }
+      return true;
+    });
+    
     //actually delete the streams
     while (toDelete.size() > 0){
       std::string deleting = *(toDelete.begin());
       out.removeMember(deleting);
       toDelete.erase(deleting);
-    }
-
-    //update old-style configurations to new-style
-    for (JSON::ObjIter jit = in.ObjBegin(); jit != in.ObjEnd(); jit++){
-      if (jit->second.isMember("channel")){
-        if ( !jit->second.isMember("source")){
-          jit->second["source"] = jit->second["channel"]["URL"];
-        }
-        jit->second.removeMember("channel");
-      }
-      if (jit->second.isMember("preset")){
-        jit->second.removeMember("preset");
-      }
     }
 
   }

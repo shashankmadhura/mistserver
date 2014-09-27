@@ -220,13 +220,14 @@ int main(int argc, char ** argv){
           std::getline(std::cin, in_string);
           if (yna(in_string) == 'y'){
             //create protocols
-            for (JSON::ObjIter it = Controller::capabilities["connectors"].ObjBegin(); it != Controller::capabilities["connectors"].ObjEnd(); it++){
-              if ( !it->second.isMember("required")){
+            Controller::capabilities["connectors"].forEachMember([&] (const std::string & name, const JSON::Value & val) -> bool {
+              if ( !val.isMember("required")){
                 JSON::Value newProtocol;
-                newProtocol["connector"] = it->first;
+                newProtocol["connector"] = name;
                 Controller::Storage["config"]["protocols"].append(newProtocol);
               }
-            }
+              return true;
+            });
           }else if(yna(in_string) == 'a'){
             //abort controller startup
             return 0;
@@ -276,9 +277,10 @@ int main(int argc, char ** argv){
     std::cerr << "Error writing config " << Controller::conf.getString("configFile") << std::endl;
     tthread::lock_guard<tthread::mutex> guard(Controller::logMutex);
     Controller::Storage.removeMember("log");
-    for (JSON::ObjIter it = Controller::Storage["streams"].ObjBegin(); it != Controller::Storage["streams"].ObjEnd(); it++){
-      it->second.removeMember("meta");
-    }
+    Controller::Storage["streams"].forEach([&] (JSON::Value & val) -> bool {
+      val.removeMember("meta");
+      return true;
+    });
     std::cerr << "**Config**" << std::endl;
     std::cerr << Controller::Storage.toString() << std::endl;
     std::cerr << "**End config**" << std::endl;

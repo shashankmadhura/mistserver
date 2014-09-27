@@ -145,33 +145,36 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   unsigned int fields = 0;
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
-      if ((*it).asStringRef() == "host"){fields |= STAT_CLI_HOST;}
-      if ((*it).asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
-      if ((*it).asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
-      if ((*it).asStringRef() == "conntime"){fields |= STAT_CLI_CONNTIME;}
-      if ((*it).asStringRef() == "position"){fields |= STAT_CLI_POSITION;}
-      if ((*it).asStringRef() == "down"){fields |= STAT_CLI_DOWN;}
-      if ((*it).asStringRef() == "up"){fields |= STAT_CLI_UP;}
-      if ((*it).asStringRef() == "downbps"){fields |= STAT_CLI_BPS_DOWN;}
-      if ((*it).asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
-    }
+    req["fields"].forEach([&] (const JSON::Value & val) -> bool {
+      if (val.asStringRef() == "host"){fields |= STAT_CLI_HOST;}
+      if (val.asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
+      if (val.asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
+      if (val.asStringRef() == "conntime"){fields |= STAT_CLI_CONNTIME;}
+      if (val.asStringRef() == "position"){fields |= STAT_CLI_POSITION;}
+      if (val.asStringRef() == "down"){fields |= STAT_CLI_DOWN;}
+      if (val.asStringRef() == "up"){fields |= STAT_CLI_UP;}
+      if (val.asStringRef() == "downbps"){fields |= STAT_CLI_BPS_DOWN;}
+      if (val.asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
+      return true;
+    });
   }
   //select all, if none selected
   if (!fields){fields = STAT_CLI_ALL;}
   //figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
-      streams.insert((*it).asStringRef());
-    }
+    req["streams"].forEach([&] (const JSON::Value & val) -> bool {
+      streams.insert(val.asStringRef());
+      return true;
+    });
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
-      protos.insert((*it).asStringRef());
-    }
+    req["protocols"].forEach([&] (const JSON::Value & val) -> bool {
+      protos.insert(val.asStringRef());
+      return true;
+    });
   }
   //output the selected fields
   rep["fields"].null();
@@ -353,27 +356,30 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   unsigned int fields = 0;
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
-    for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
-      if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
-      if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
-      if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
-    }
+    req["fields"].forEach([&] (const JSON::Value & val) -> bool {
+      if (val.asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
+      if (val.asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
+      if (val.asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
+      return true;
+    });
   }
   //select all, if none selected
   if (!fields){fields = STAT_TOT_ALL;}
   //figure out what streams are wanted
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
-    for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
-      streams.insert((*it).asStringRef());
-    }
+    req["streams"].forEach([&] (const JSON::Value & val) -> bool {
+      streams.insert(val.asStringRef());
+      return true;
+    });
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
-    for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
-      protos.insert((*it).asStringRef());
-    }
+    req["protocols"].forEach([&] (const JSON::Value & val) -> bool {
+      protos.insert(val.asStringRef());
+      return true;
+    });
   }
   //output the selected fields
   rep["fields"].null();

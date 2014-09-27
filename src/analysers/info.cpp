@@ -94,11 +94,13 @@ namespace Info {
         fileSpecs["is_fixed"] = 1ll;
       }
       JSON::Value tracks = fileSpecs["tracks"];
-      for(JSON::ObjIter trackIt = tracks.ObjBegin(); trackIt != tracks.ObjEnd(); trackIt++){
-        fileSpecs["tracks"][trackIt->first].removeMember("fragments");
-        fileSpecs["tracks"][trackIt->first].removeMember("keys");
-        fileSpecs["tracks"][trackIt->first].removeMember("parts");
-      }
+      
+      tracks.forEach([&] (JSON::Value & trk) -> bool {
+        trk.removeMember("fragments");
+        trk.removeMember("keys");
+        trk.removeMember("parts");
+        return true;
+      });
     }
     printf( "%s", fileSpecs.toString().c_str() );
     return 0;

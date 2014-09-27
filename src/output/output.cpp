@@ -258,73 +258,69 @@ namespace Mist {
     unsigned int bestSoFar = 0;
     unsigned int bestSoFarCount = 0;
     unsigned int index = 0;
-    for (JSON::ArrIter it = capa["codecs"].ArrBegin(); it != capa["codecs"].ArrEnd(); it++){
+    capa["codecs"].forEach([&] (const JSON::Value & codec) -> bool {
       unsigned int genCounter = 0;
       unsigned int selCounter = 0;
-      if ((*it).size() > 0){
-        for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
-          if ((*itb).size() > 0){
-            bool found = false;
-            for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
-              for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
-                  selCounter++;
-                  found = true;
-                  break;
-                }
-              }
-              if (!found){
-                for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef()){
-                    genCounter++;
-                    found = true;
-                    break;
-                  }
-                }
+      codec.forEach([&] (const JSON::Value & combo) -> bool {
+        bool found = false;
+        combo.forEach([&] (const JSON::Value & comboB) -> bool {
+          for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
+            if (myMeta.tracks[*itd].codec == comboB.asStringRef()){
+              selCounter++;
+              found = true;
+              break;
+            }
+          }
+          if (!found){
+            for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+              if (trit->second.codec == comboB.asStringRef()){
+                genCounter++;
+                found = true;
+                break;
               }
             }
           }
+          return true;
+        });
+        return true;
+      });
+      if (selCounter == selectedTracks.size()){
+        if (selCounter + genCounter > bestSoFarCount){
+          bestSoFarCount = selCounter + genCounter;
+          bestSoFar = index;
+          DEBUG_MSG(DLVL_HIGH, "Match (%u/%u): %s", selCounter, selCounter+genCounter, codec.toString().c_str());
         }
-        if (selCounter == selectedTracks.size()){
-          if (selCounter + genCounter > bestSoFarCount){
-            bestSoFarCount = selCounter + genCounter;
-            bestSoFar = index;
-            DEBUG_MSG(DLVL_HIGH, "Match (%u/%u): %s", selCounter, selCounter+genCounter, (*it).toString().c_str());
-          }
-        }else{
-          DEBUG_MSG(DLVL_VERYHIGH, "Not a match for currently selected tracks: %s", (*it).toString().c_str());
-        }
+      }else{
+        DEBUG_MSG(DLVL_VERYHIGH, "Not a match for currently selected tracks: %s", codec.toString().c_str());
       }
       index++;
-    }
+      return true;
+    });
     
     DEBUG_MSG(DLVL_MEDIUM, "Trying to fill: %s", capa["codecs"][bestSoFar].toString().c_str());
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
-      for (JSON::ArrIter itb = capa["codecs"][bestSoFar].ArrBegin(); itb != capa["codecs"][bestSoFar].ArrEnd(); itb++){
-        if ((*itb).size() && myMeta.tracks.size()){
-          bool found = false;
-          for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
+      capa["codecs"][bestSoFar].forEach([&] (const JSON::Value & combo) -> bool {
+        if (myMeta.tracks.size()){
+          combo.forEach([&] (const JSON::Value & comboB) -> bool {
             if (selectedTracks.size()){
               for (std::set<long unsigned int>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
-                  found = true;
-                  break;
+                if (myMeta.tracks[*itd].codec == comboB.asStringRef()){
+                  return false;
                 }
               }
             }
-            if (!found){
-              for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                if (trit->second.codec == (*itc).asStringRef()){
-                  selectedTracks.insert(trit->first);
-                  found = true;
-                  break;
-                }
+            for (std::map<int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
+              if (trit->second.codec == comboB.asStringRef()){
+                selectedTracks.insert(trit->first);
+                return false;
               }
             }
-          }
+            return true;
+          });
         }
-      }
+        return true;
+      });
     }
     
     if (Util::Config::printDebugLevel >= DLVL_MEDIUM){
@@ -338,7 +334,7 @@ namespace Mist {
           selected << (*it);
         }
       }
-      DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());    
+      DEBUG_MSG(DLVL_MEDIUM, "Selected tracks: %s (%lu)", selected.str().c_str(), selectedTracks.size());
     }
     
     sought = false;

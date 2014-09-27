@@ -36,22 +36,23 @@ namespace Connector_HTTP {
 
 
   static inline void builPipedPart(JSON::Value & p, char * argarr[], int & argnum, JSON::Value & argset){
-    for (JSON::ObjIter it = argset.ObjBegin(); it != argset.ObjEnd(); ++it){
-      if (it->second.isMember("option") && p.isMember(it->first)){
-        if (it->second.isMember("type")){
-          if (it->second["type"].asStringRef() == "str" && !p[it->first].isString()){
-            p[it->first] = p[it->first].asString();
+    argset.forEachMember([&] (const std::string & name, const JSON::Value & val) -> bool {
+      if (val.isMember("option") && p.isMember(name)){
+        if (val.isMember("type")){
+          if (val["type"].asStringRef() == "str" && !p[name].isString()){
+            p[name] = p[name].asString();
           }
-          if ((it->second["type"].asStringRef() == "uint" || it->second["type"].asStringRef() == "int") && !p[it->first].isInt()){
-            p[it->first] = JSON::Value(p[it->first].asInt()).asString();
+          if ((val["type"].asStringRef() == "uint" || val["type"].asStringRef() == "int") && !p[name].isInt()){
+            p[name] = JSON::Value(p[name].asInt()).asString();
           }
         }
-        if (p[it->first].asStringRef().size() > 0){
-          argarr[argnum++] = (char*)(it->second["option"].c_str());
-          argarr[argnum++] = (char*)(p[it->first].c_str());
+        if (p[name].asStringRef().size() > 0){
+          argarr[argnum++] = (char*)(val["option"].c_str());
+          argarr[argnum++] = (char*)(p[name].c_str());
         }
       }
-    }
+      return true;
+    });
   }
 
   /// Class for keeping track of connections to connectors.
@@ -217,30 +218,31 @@ namespace Connector_HTTP {
     unsigned int most_simul = 0;
     unsigned int total_matches = 0;
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
-      for (JSON::ArrIter it = conncapa["codecs"].ArrBegin(); it != conncapa["codecs"].ArrEnd(); it++){
+      
+      conncapa["codecs"].forEach([&] (const JSON::Value & valA) -> bool {
         unsigned int simul = 0;
-        if ((*it).size() > 0){
-          for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
-            unsigned int matches = 0;
-            if ((*itb).size() > 0){
-              for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd(); itc++){
-                for (JSON::ObjIter trit = strmMeta["tracks"].ObjBegin(); trit != strmMeta["tracks"].ObjEnd(); trit++){
-                  if (trit->second["codec"].asStringRef() == (*itc).asStringRef()){
-                    matches++;
-                    total_matches++;
-                  }
-                }
+        valA.forEach([&] (const JSON::Value & valB) -> bool {
+          unsigned int matches = 0;
+          valB.forEach([&] (const JSON::Value & valC) -> bool {
+            strmMeta["tracks"].forEach([&] (const JSON::Value & valD) -> bool {
+              if (valD["codec"].asStringRef() == valC.asStringRef()){
+                matches++;
+                total_matches++;
               }
-            }
-            if (matches){
-              simul++;
-            }
+              return true;
+            });
+            return true;
+          });
+          if (matches){
+            simul++;
           }
-        }
+          return true;
+        });
         if (simul > most_simul){
           most_simul = simul;
         }
-      }
+        return true;
+      });
     }
     if (conncapa.isMember("methods") && conncapa["methods"].size() > 0){
       std::string relurl;
@@ -250,11 +252,12 @@ namespace Connector_HTTP {
       }else{
         relurl = "/";
       }
-      for (JSON::ArrIter it = conncapa["methods"].ArrBegin(); it != conncapa["methods"].ArrEnd(); it++){
-        if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          addSource(relurl, sources, host, port, *it, most_simul, total_matches);
+      conncapa["methods"].forEach([&] (JSON::Value & method) -> bool {
+        if (!strmMeta.isMember("live") || !method.isMember("nolive")){
+          addSource(relurl, sources, host, port, method, most_simul, total_matches);
         }
-      }
+        return true;
+      });
     }
   }
   
@@ -337,13 +340,13 @@ namespace Connector_HTTP {
       
       std::string port, url_rel;
       
-      for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-        const std::string & cName = ( *it)["connector"].asStringRef();
-        if (cName != "RTMP"){continue;}
+      ServConf["config"]["protocols"].forEach([&] (const JSON::Value & proto) -> bool {
+        const std::string & cName = proto["connector"].asStringRef();
+        if (cName != "RTMP"){return true;}
         //if we have the RTMP port,
         if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
           //get the default port if none is set
-          if (( *it)["port"].asInt() == 0){
+          if (proto["port"].asInt() == 0){
             port = capabilities[cName]["optional"]["port"]["default"].asString();
           }
           //extract url
@@ -354,14 +357,16 @@ namespace Connector_HTTP {
             }
           }
         }
-      }
+        return false;
+      });
 
       std::string trackSources;//this string contains all track sources for MBR smil
-      for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){//for all tracks
-        if (it->second.isMember("type") && it->second["type"].asString() == "video"){
-          trackSources += "      <video src='"+ streamname + "?track=" + it->second["trackid"].asString() + "' height='" + it->second["height"].asString() + "' system-bitrate='" + it->second["bps"].asString() + "' width='" + it->second["width"].asString() + "' />\n";
+      ServConf["streams"][streamname]["meta"]["tracks"].forEach([&] (const JSON::Value & track) -> bool {
+        if (track.isMember("type") && track["type"].asString() == "video"){
+          trackSources += "      <video src='"+ streamname + "?track=" + track["trackid"].asString() + "' height='" + track["height"].asString() + "' system-bitrate='" + track["bps"].asString() + "' width='" + track["width"].asString() + "' />\n";
         }
-      }
+        return true;
+      });
 
       H.Clean();
       H.SetHeader("Content-Type", "application/smil");
@@ -394,14 +399,15 @@ namespace Connector_HTTP {
       JSON::Value json_resp;
       if (ServConf["streams"].isMember(streamname) && ServConf["config"]["protocols"].size() > 0){
         if (ServConf["streams"][streamname]["meta"].isMember("tracks") && ServConf["streams"][streamname]["meta"]["tracks"].size() > 0){
-          for (JSON::ObjIter it = ServConf["streams"][streamname]["meta"]["tracks"].ObjBegin(); it != ServConf["streams"][streamname]["meta"]["tracks"].ObjEnd(); it++){
-            if (it->second.isMember("width") && it->second["width"].asInt() > json_resp["width"].asInt()){
-              json_resp["width"] = it->second["width"].asInt();
+          ServConf["streams"][streamname]["meta"]["tracks"].forEach([&] (const JSON::Value & track) -> bool {
+            if (track.isMember("width") && track["width"].asInt() > json_resp["width"].asInt()){
+              json_resp["width"] = track["width"].asInt();
             }
-            if (it->second.isMember("height") && it->second["height"].asInt() > json_resp["height"].asInt()){
-              json_resp["height"] = it->second["height"].asInt();
+            if (track.isMember("height") && track["height"].asInt() > json_resp["height"].asInt()){
+              json_resp["height"] = track["height"].asInt();
             }
-          }
+            return true;
+          });
         }
         if (json_resp["width"].asInt() < 1 || json_resp["height"].asInt() < 1){
           json_resp["width"] = 640ll;
@@ -422,31 +428,34 @@ namespace Connector_HTTP {
 
         //find out which connectors are enabled
         std::set<std::string> conns;
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          conns.insert(( *it)["connector"].asStringRef());
-        }
+        ServConf["config"]["protocols"].forEach([&] (const JSON::Value & proto) -> bool {
+          conns.insert(proto["connector"].asStringRef());
+          return true;
+        });
         //loop over the connectors.
-        for (JSON::ArrIter it = ServConf["config"]["protocols"].ArrBegin(); it != ServConf["config"]["protocols"].ArrEnd(); it++){
-          const std::string & cName = ( *it)["connector"].asStringRef();
+        ServConf["config"]["protocols"].forEach([&] (JSON::Value & proto) -> bool {
+          const std::string & cName = proto["connector"].asStringRef();
           //if the connector has a port,
           if (capabilities.isMember(cName) && capabilities[cName].isMember("optional") && capabilities[cName]["optional"].isMember("port")){
             //get the default port if none is set
-            if (( *it)["port"].asInt() == 0){
-              ( *it)["port"] = capabilities[cName]["optional"]["port"]["default"];
+            if (proto["port"].asInt() == 0){
+              proto["port"] = capabilities[cName]["optional"]["port"]["default"];
             }
             //and a URL - then list the URL
             if (capabilities[cName].isMember("url_rel")){
-              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
+              addSources(streamname, capabilities[cName]["url_rel"].asStringRef(), sources, host, proto["port"].asString(), capabilities[cName], ServConf["streams"][streamname]["meta"]);
             }
             //check each enabled protocol separately to see if it depends on this connector
-            for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
+            capabilities.forEachMember([&] (const std::string & name, JSON::Value & val) -> bool {
               //if it depends on this connector and has a URL, list it
-              if (conns.count(oit->first) && (oit->second["deps"].asStringRef() == cName || oit->second["deps"].asStringRef() + ".exe" == cName) && oit->second.isMember("methods")){
-                addSources(streamname, oit->second["url_rel"].asStringRef(), sources, host, ( *it)["port"].asString(), oit->second, ServConf["streams"][streamname]["meta"]);
+              if (conns.count(name) && (val["deps"].asStringRef() == cName || val["deps"].asStringRef() + ".exe" == cName) && val.isMember("methods")){
+                addSources(streamname, val["url_rel"].asStringRef(), sources, host, proto["port"].asString(), val, ServConf["streams"][streamname]["meta"]);
               }
-            }
+              return true;
+            });
           }
-        }
+          return true;
+        });
         
         //loop over the added sources, add them to json_resp["sources"]
         for (std::set<JSON::Value, sourceCompare>::iterator it = sources.begin(); it != sources.end(); it++){
@@ -559,38 +568,42 @@ namespace Connector_HTTP {
     std::string url = H.getUrl();
     
     //loop over the connectors
-    for (JSON::ObjIter oit = capabilities.ObjBegin(); oit != capabilities.ObjEnd(); oit++){
+    std::string match = "";
+    capabilities.forEachMember([&] (const std::string & name, const JSON::Value & cpbl) -> bool {
       //if it depends on HTTP and has a match or prefix...
-      if (oit->second["deps"].asStringRef() == "HTTP" && oit->second.isMember("socket") && (oit->second.isMember("url_match") || oit->second.isMember("url_prefix"))){
+      if (cpbl["deps"].asStringRef() == "HTTP" && cpbl.isMember("socket") && (cpbl.isMember("url_match") || cpbl.isMember("url_prefix"))){
         //if there is a matcher, try to match
-        if (oit->second.isMember("url_match")){
-          size_t found = oit->second["url_match"].asStringRef().find('$');
+        if (cpbl.isMember("url_match")){
+          size_t found = cpbl["url_match"].asStringRef().find('$');
           if (found != std::string::npos){
-            if (oit->second["url_match"].asStringRef().substr(0, found) == url.substr(0, found) && oit->second["url_match"].asStringRef().substr(found+1) == url.substr(url.size() - (oit->second["url_match"].asStringRef().size() - found) + 1)){
+            if (cpbl["url_match"].asStringRef().substr(0, found) == url.substr(0, found) && cpbl["url_match"].asStringRef().substr(found+1) == url.substr(url.size() - (cpbl["url_match"].asStringRef().size() - found) + 1)){
               //it matched - handle it now
-              std::string streamname = url.substr(found, url.size() - oit->second["url_match"].asStringRef().size() + 1);
+              std::string streamname = url.substr(found, url.size() - cpbl["url_match"].asStringRef().size() + 1);
               Util::Stream::sanitizeName(streamname);
-              H.SetVar("stream", streamname);             
-              return oit->first;
+              H.SetVar("stream", streamname);
+              match = name;
+              return false;
             }
           }
         }
         //if there is a prefix, try to match
-        if (oit->second.isMember("url_prefix")){
-          size_t found = oit->second["url_prefix"].asStringRef().find('$');
+        if (cpbl.isMember("url_prefix")){
+          size_t found = cpbl["url_prefix"].asStringRef().find('$');
           if (found != std::string::npos){
-            size_t found_suf = url.find(oit->second["url_prefix"].asStringRef().substr(found+1), found);
-            if (oit->second["url_prefix"].asStringRef().substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
+            size_t found_suf = url.find(cpbl["url_prefix"].asStringRef().substr(found+1), found);
+            if (cpbl["url_prefix"].asStringRef().substr(0, found) == url.substr(0, found) && found_suf != std::string::npos){
               //it matched - handle it now
               std::string streamname = url.substr(found, found_suf - found);
               Util::Stream::sanitizeName(streamname);
               H.SetVar("stream", streamname);
-              return oit->first;
+              match = name;
+              return false;
             }
           }
         }
       }
-    }
+      return true;
+    });
   
     if (url.length() > 4){
       std::string ext = url.substr(url.length() - 4, 4);

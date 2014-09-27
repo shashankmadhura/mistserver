@@ -16,19 +16,21 @@ namespace Mist {
     JSON::Value & vidCapa = capa["codecs"][0u][0u];
     JSON::Value & audCapa = capa["codecs"][0u][1u];
     for (std::map<int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
-      for (JSON::ArrIter itb = vidCapa.ArrBegin(); itb != vidCapa.ArrEnd(); itb++){
-        if (it->second.codec == (*itb).asStringRef()){
+      vidCapa.forEach([&] (const JSON::Value & codec) -> bool {
+        if (it->second.codec == codec.asStringRef()){
           videoTracks.insert(it->first);
-          break;
+          return false;
         }
-      }
+        return true;
+      });
       if (!audioTrack){
-        for (JSON::ArrIter itb = audCapa.ArrBegin(); itb != audCapa.ArrEnd(); itb++){
-          if (it->second.codec == (*itb).asStringRef()){
+        audCapa.forEach([&] (const JSON::Value & codec) -> bool {
+          if (it->second.codec == codec.asStringRef()){
             audioTrack = it->first;
-            break;
+            return false;
           }
-        }
+          return true;
+        });
       }
     }
   }

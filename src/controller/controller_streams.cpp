@@ -218,6 +218,8 @@ namespace Controller {
                   checker[name].lastms = track["lastms"].asInt();
                   checker[name].last_active = currTime;
                 }
+                return true;
+              });
             }
             // mark stream as offline if no activity for 5 seconds
             //if (jit->second.isMember("last_active") && jit->second["last_active"].asInt() < currTime - 5){

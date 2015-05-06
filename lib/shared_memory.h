@@ -85,6 +85,7 @@ namespace IPC {
       semaphore * mySemaphore;
   };
 
+#ifndef _WIN32
   ///\brief A class for managing shared files.
   class sharedFile {
     public:
@@ -110,6 +111,7 @@ namespace IPC {
       ///\brief A pointer to the payload of the file file
       char * mapped;
   };
+#endif
 
 #if defined(__CYGWIN__) || defined(_WIN32)
   void preservePage(std::string);

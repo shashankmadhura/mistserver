@@ -6,9 +6,14 @@
 #include <string>
 #include <sstream>
 #include <sys/types.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
+#endif
+#include <stdint.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
@@ -64,7 +69,6 @@ namespace Socket {
       Connection(); ///< Create a new disconnected base socket.
       Connection(int sockNo); ///< Create a new base socket.
       Connection(std::string hostname, int port, bool nonblock); ///< Create a new TCP socket.
-      Connection(std::string adres, bool nonblock = false); ///< Create a new Unix Socket.
       Connection(int write, int read); ///< Simulate a socket using two file descriptors.
       //generic methods
       void close(); ///< Close connection.
@@ -110,7 +114,6 @@ namespace Socket {
     public:
       Server(); ///< Create a new base Server.
       Server(int port, std::string hostname = "0.0.0.0", bool nonblock = false); ///< Create a new TCP Server.
-      Server(std::string adres, bool nonblock = false); ///< Create a new Unix Server.
       Connection accept(bool nonblock = false); ///< Accept any waiting connections.
       void setBlocking(bool blocking); ///< Set this socket to be blocking (true) or nonblocking (false).
       bool connected() const; ///< Returns the connected-state for this socket.

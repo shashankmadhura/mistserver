@@ -1,6 +1,5 @@
 #include <stdlib.h> //for malloc and free
 #include <string.h> //for memcpy
-#include <arpa/inet.h> //for htonl and friends
 #include "mp4.h"
 #include "mp4_adobe.h"
 #include "mp4_ms.h"

@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <stdint.h> //for uint64_t
 #include <string.h> //for memcpy
-#include <arpa/inet.h> //for htonl
 
 static inline char c2hex(char c) {
   if (c >= '0' && c <= '9') return c - '0';

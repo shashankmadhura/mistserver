@@ -1,7 +1,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <sys/sem.h>
+#endif
 #include <cerrno>
 #include <cstring>
 #include <cstdlib>
@@ -384,6 +386,7 @@ namespace IPC {
 
 #endif
 
+#ifndef _WIN32
   ///brief Creates a shared file
   ///\param name_ The name of the file to be created
   ///\param len_ The size to make the file
@@ -498,7 +501,7 @@ namespace IPC {
   sharedFile::~sharedFile() {
     close();
   }
-
+#endif
 
   ///\brief StatExchange constructor, sets the datapointer to the given value
   statExchange::statExchange(char * _data) : data(_data) {}
@@ -751,12 +754,14 @@ namespace IPC {
             if (id >= amount) {
               amount = id + 1;
               DEBUG_MSG(DLVL_VERYHIGH, "Shared memory %s is now at count %u", baseName.c_str(), amount);
-            }            
-            unsigned short tmpPID = *((unsigned short *)(it->mapped+1+offset+payLen-2));            
+            }
+            #ifndef _WIN32
+            pid_t tmpPID = (*((unsigned short *)(it->mapped+1+offset+payLen-2)));            
             if(!Util::Procs::isRunning(tmpPID) && !(*counter == 126 || *counter == 127 || *counter == 254 || *counter == 255)){
               WARN_MSG("process disappeared, timing out. (pid %d)", tmpPID);    
               *counter = 126; //if process is already dead, instant timeout.
             }
+            #endif
             callback(it->mapped + offset + 1, payLen, id);
             switch (*counter) {
               case 127:
@@ -772,6 +777,7 @@ namespace IPC {
                 DEBUG_MSG(DLVL_WARN, "Client %u disconnect timed out", id);
                 break;
               default:
+                #ifndef _WIN32
                 if(*counter > 10 && *counter < 126 ){
                   if(*counter < 30){
                     if (*counter > 15){
@@ -783,6 +789,7 @@ namespace IPC {
                     Util::Procs::Murder(tmpPID); //improved kill      
                   }
                 }
+                #endif
                 break;
             }
             if (*counter == 127 || *counter == 126 || *counter == 255 || *counter == 254) {

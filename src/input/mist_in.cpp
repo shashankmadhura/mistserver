@@ -2,7 +2,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h> 
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 #include <unistd.h>
 #include <semaphore.h>
 
@@ -23,6 +25,7 @@ int main(int argc, char * argv[]) {
       }
     }
     conf.activate();
+    #ifndef _WIN32
     while (conf.is_active){
       int pid = fork();
       if (pid == 0){
@@ -47,10 +50,12 @@ int main(int argc, char * argv[]) {
         break;
       }
     }
+    #else
+    conv.run();
+    #endif
     playerLock.post();
     playerLock.close();
   }
   return 0;
 }
-
 

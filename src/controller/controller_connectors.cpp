@@ -85,9 +85,6 @@ namespace Controller {
     std::set<std::string> runningConns;
 
     // used for building args
-    int zero = 0;
-    int out = fileno(stdout);
-    int err = fileno(stderr);
     char * argarr[15];	// approx max # of args (with a wide margin)
     int i;
 
@@ -167,7 +164,7 @@ namespace Controller {
         // get args for this connector
         buildPipedArguments(*runningConns.begin(), (char **)&argarr, capabilities);
         // start piped w/ generated args
-        currentConnectors[*runningConns.begin()] = Util::Procs::StartPiped(argarr, &zero, &out, &err);
+        currentConnectors[*runningConns.begin()] = Util::Procs::runArgs(argarr);
       }
       runningConns.erase(runningConns.begin());
     }

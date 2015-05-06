@@ -9,6 +9,9 @@
 
 #include <string>
 #include "json.h"
+#ifdef _WIN32
+#include "procs.h"
+#endif
 
 /// Contains utility code, not directly related to streaming media
 namespace Util {

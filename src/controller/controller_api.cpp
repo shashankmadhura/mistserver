@@ -1,5 +1,6 @@
 #include <dirent.h> //for browse API call
 #include <sys/stat.h> //for browse API call
+#include <time.h>
 #include <mist/http_parser.h>
 #include <mist/auth.h>
 #include <mist/config.h>
@@ -252,6 +253,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
             if(Request["browse"] == ""){
               Request["browse"] = ".";
             }
+            #ifndef _WIN32
             DIR *dir;
             struct dirent *ent;
             struct stat filestat;
@@ -276,6 +278,7 @@ int Controller::handleAPIConnection(Socket::Connection & conn){
               }
             }
             free(rpath);
+            #endif
           }
 
           /// 

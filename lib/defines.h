@@ -16,6 +16,10 @@
 #define DLVL_DONTEVEN 10 // All messages enabled, even pointless ones.
 #if DEBUG > -1
 
+#ifndef ACCESSPERMS
+#define ACCESSPERMS (S_IRWXU|S_IRWXG|S_IRWXO) 
+#endif
+
 #include <stdio.h>
 #include <unistd.h>
 #include "config.h"
@@ -23,6 +27,10 @@ static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "
 
 #if !defined(__APPLE__) && !defined(__MACH__) && defined(__GNUC__)
 #include <errno.h>
+
+#ifdef _WIN32
+#define program_invocation_short_name ""
+#endif
 
 #if DEBUG >= DLVL_DEVEL
 #define DEBUG_MSG(lvl, msg, ...) if (Util::Config::printDebugLevel >= lvl){fprintf(stderr, "%s|%s|%d|%s:%d|" msg "\n", DBG_LVL_LIST[lvl], program_invocation_short_name, getpid(), __FILE__, __LINE__, ##__VA_ARGS__);}

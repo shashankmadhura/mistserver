@@ -38,7 +38,11 @@ std::string Util::getTmpFolder() {
 #endif
   }
   if (access(dir.c_str(), 0) != 0) {
+    #ifdef _WIN32
+    mkdir(dir.c_str());
+    #else
     mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IRWXO); //attempt to create mist folder - ignore failures
+    #endif
   }
   return dir + "/";
 }
@@ -183,7 +187,8 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }
   argv[++argNum] = (char *)0;
   
-  int pid = 0;
+  pid_t pid = 0;
+  #ifndef _WIN32
   if (forkFirst){
     DEBUG_MSG(DLVL_DONTEVEN, "Forking");
     pid = fork();
@@ -194,6 +199,7 @@ bool Util::startInput(std::string streamname, std::string filename, bool forkFir
   }else{
     DEBUG_MSG(DLVL_DONTEVEN, "Not forking");
   }
+  #endif
   
   if (pid == 0){
     DEBUG_MSG(DLVL_DONTEVEN, "execvp");

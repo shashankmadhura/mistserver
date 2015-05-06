@@ -963,10 +963,6 @@ bool FLV::Tag::FileReadUntil(char * buffer, unsigned int count, unsigned int & s
 /// \param f The file to read from.
 /// \return True if a whole tag is succesfully read, false otherwise.
 bool FLV::Tag::FileLoader(FILE * f) {
-  int preflags = fcntl(fileno(f), F_GETFL, 0);
-  int postflags = preflags | O_NONBLOCK;
-  fcntl(fileno(f), F_SETFL, postflags);
-
   if (len < 15) {
     len = 15;
   }
@@ -1023,13 +1019,11 @@ bool FLV::Tag::FileLoader(FILE * f) {
       }
       done = true;
       sofar = 0;
-      fcntl(fileno(f), F_SETFL, preflags);
       return true;
     } else {
       Util::sleep(100);//sleep 100ms
     }
   }
-  fcntl(fileno(f), F_SETFL, preflags);
   return false;
 } //FLV_GetPacket
 

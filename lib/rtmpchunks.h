@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string>
-#include <arpa/inet.h>
 #include "socket.h"
 
 //forward declaration of FLV::Tag to avoid circular dependencies.

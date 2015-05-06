@@ -7,6 +7,7 @@
 #include <mist/defines.h>
 #include "controller_storage.h"
 #include "controller_capabilities.h"
+#include <time.h>
 
 ///\brief Holds everything unique to the controller.
 namespace Controller {

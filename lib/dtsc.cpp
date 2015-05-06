@@ -5,7 +5,6 @@
 #include "defines.h"
 #include <stdlib.h>
 #include <string.h> //for memcmp
-#include <arpa/inet.h> //for htonl/ntohl
 char DTSC::Magic_Header[] = "DTSC";
 char DTSC::Magic_Packet[] = "DTPD";
 char DTSC::Magic_Packet2[] = "DTP2";

@@ -148,7 +148,8 @@ int main(int argc, char ** argv){
   }
   //reload config from config file
   Controller::Storage = JSON::fromFile(Controller::conf.getString("configFile"));
-  
+ 
+  #ifndef _WIN32
   {//spawn thread that reads stderr of process
     int pipeErr[2];
     if (pipe(pipeErr) >= 0){
@@ -158,7 +159,7 @@ int main(int argc, char ** argv){
       msghandler.detach();
     }
   }
-  
+  #endif
   
   if (Controller::conf.getOption("debug",true).size() > 1){
     Controller::Storage["config"]["debug"] = Controller::conf.getInteger("debug");

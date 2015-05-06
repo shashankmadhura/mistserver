@@ -1,32 +1,40 @@
 /// \file procs.cpp
 /// Contains generic functions for managing processes.
 
-#include "procs.h"
-#include "defines.h"
 #include <string.h>
 #include <sys/types.h>
 #include <signal.h>
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
-#include <sys/wait.h>
-#else
-#include <wait.h>
+#ifndef _WIN32
+  #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
+    #include <sys/wait.h>
+  #else
+    #include <wait.h>
+  #endif
+  #include <pwd.h>
 #endif
 #include <errno.h>
 #include <iostream>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <pwd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "timing.h"
+#include "procs.h"
+#include "defines.h"
 
 std::set<pid_t> Util::Procs::plist;
+#ifndef _WIN32
 bool Util::Procs::handler_set = false;
-
+#endif
 
 
 static bool childRunning(pid_t p) {
+#ifdef _WIN32
+  DWORD response;
+  GetExitCodeProcess(p, &response);
+  return response == STILL_ACTIVE;
+#else
   pid_t ret = waitpid(p, 0, WNOHANG);
   if (ret == p) {
     return false;
@@ -35,11 +43,18 @@ static bool childRunning(pid_t p) {
     return childRunning(p);
   }
   return !kill(p, 0);
+#endif
 }
 
 /// sends sig 0 to process (pid). returns true if process is running
 bool Util::Procs::isRunning(pid_t pid){
+#ifdef _WIN32
+  DWORD response;
+  GetExitCodeProcess(pid, &response);
+  return response == STILL_ACTIVE;
+#else
   return !kill(pid, 0);
+#endif
 }
 
 /// Called at exit of any program that used a Start* function.
@@ -47,6 +62,7 @@ bool Util::Procs::isRunning(pid_t pid){
 /// After that waits up to 5 seconds for children to exit, then sends SIGKILL to
 /// all remaining children. Waits one more second for cleanup to finish, then exits.
 void Util::Procs::exit_handler() {
+#ifndef _WIN32
   int waiting = 0;
   std::set<pid_t> listcopy = plist;
   std::set<pid_t>::iterator it;
@@ -127,8 +143,11 @@ void Util::Procs::exit_handler() {
     return;
   }
   DEBUG_MSG(DLVL_DEVEL, "Giving up with %d children left.", (int)listcopy.size());
-
+#endif
 }
+
+#ifndef _WIN32
+/// \todo Implement for _WIN32: https://msdn.microsoft.com/en-us/library/windows/desktop/ms682066(v=vs.85).aspx
 
 /// Sets up exit and childsig handlers.
 /// Called by every Start* function.
@@ -143,7 +162,6 @@ void Util::Procs::setHandler() {
     handler_set = true;
   }
 }
-
 
 /// Used internally to capture child signals and update plist.
 void Util::Procs::childsig_handler(int signum) {
@@ -180,17 +198,86 @@ void Util::Procs::childsig_handler(int signum) {
 
   }
 }
+#endif
 
+#ifdef _WIN32
+static std::string argvToCmdline(char * const * a){
+  std::string ret;
+  unsigned int i = 0;
+  while (i < 50 && a[i]){
+    std::string tmp = a[i];
+    /*
+    while (tmp.find('"') != std::string::npos){
+      tmp.replace
+    }
+    */
+    if (ret.size()){ret += " ";}
+    if (tmp.find(' ') != std::string::npos){
+      ret += "\"" + tmp + "\"";
+    }else{
+      ret += tmp;
+    }
+    ++i;
+  }
+  INFO_MSG("Starting: %s", ret.c_str());
+  return ret;
+}
+#endif
 
 /// Runs the given command and returns the stdout output as a string.
 std::string Util::Procs::getOutputOf(char * const * argv) {
   std::string ret;
-  int fin = 0, fout = -1, ferr = 0;
-  pid_t myProc = StartPiped(argv, &fin, &fout, &ferr);
+#ifdef _WIN32
+  HANDLE read_end = NULL;
+  HANDLE write_end = NULL;
+  SECURITY_ATTRIBUTES saAttr;
+  saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+  saAttr.bInheritHandle = TRUE;
+  saAttr.lpSecurityDescriptor = NULL;
+  if (!CreatePipe(&read_end, &write_end, &saAttr, 0)) return "";
+  if (!SetHandleInformation(read_end, HANDLE_FLAG_INHERIT, 0)) return "";
+  PROCESS_INFORMATION piProcInfo;
+  STARTUPINFO siStartInfo;
+  ZeroMemory( &piProcInfo, sizeof(PROCESS_INFORMATION));
+  ZeroMemory( &siStartInfo, sizeof(STARTUPINFO));
+  siStartInfo.cb = sizeof(STARTUPINFO);
+  siStartInfo.hStdError = write_end;
+  siStartInfo.hStdOutput = write_end;
+  siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+  std::string commandline = argvToCmdline(argv);
+  if (!CreateProcess(0, (char*)commandline.c_str(), 0, 0, TRUE, 0, 0, 0, &siStartInfo, &piProcInfo)) return "";
+  CloseHandle(write_end);
+  CloseHandle(piProcInfo.hProcess);
+  CloseHandle(piProcInfo.hThread);
+  DWORD dwRead = 0;
+  char chBuf[4096];
+  while (ReadFile(read_end, chBuf, sizeof(chBuf), &dwRead, NULL) && dwRead != 0){
+    ret.append(chBuf, dwRead);
+  }
+  CloseHandle(read_end);
+#else
+  int pipeout[2];
+  if (pipe(pipeout) < 0){
+    DEBUG_MSG(DLVL_ERROR, "stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
+    return "";
+  }
+  pid_t myProc = fork();
+  if (myProc == 0){
+    int devnull = open("/dev/null", O_RDWR);
+    dup2(devnull, STDIN_FILENO);
+    dup2(devnull, STDERR_FILENO);
+    close(pipeout[0]); // close unused read end
+    dup2(pipeout[1], STDOUT_FILENO);
+    close(pipeout[1]);
+    execvp(argv[0], argv);
+    DEBUG_MSG(DLVL_ERROR, "execvp failed for process %s, reason: %s", argv[0], strerror(errno));
+    exit(42);
+  }
+  close(pipeout[1]);
   while (isActive(myProc)) {
     Util::sleep(100);
   }
-  FILE * outFile = fdopen(fout, "r");
+  FILE * outFile = fdopen(pipeout[0], "r");
   char * fileBuf = 0;
   size_t fileBufLen = 0;
   while (!(feof(outFile) || ferror(outFile)) && (getline(&fileBuf, &fileBufLen, outFile) != -1)) {
@@ -198,6 +285,8 @@ std::string Util::Procs::getOutputOf(char * const * argv) {
   }
   fclose(outFile);
   free(fileBuf);
+  close(pipeout[0]);
+#endif
   return ret;
 }
 
@@ -207,149 +296,54 @@ std::string Util::Procs::getOutputOf(char * const * argv) {
 /// \arg fdin Standard input file descriptor. If null, /dev/null is assumed. Otherwise, if arg contains -1, a new fd is automatically allocated and written into this arg. Then the arg will be used as fd.
 /// \arg fdout Same as fdin, but for stdout.
 /// \arg fdout Same as fdin, but for stderr.
-pid_t Util::Procs::StartPiped(char * const * argv, int * fdin, int * fdout, int * fderr) {
+pid_t Util::Procs::runArgs(char * const * argv) {
+#ifdef _WIN32
+  PROCESS_INFORMATION piProcInfo;
+  STARTUPINFO siStartInfo;
+  ZeroMemory( &piProcInfo, sizeof(PROCESS_INFORMATION));
+  ZeroMemory( &siStartInfo, sizeof(STARTUPINFO));
+  siStartInfo.cb = sizeof(STARTUPINFO);
+  std::string commandline = argvToCmdline(argv);
+  if (!CreateProcess(0, (char*)commandline.c_str(), 0, 0, TRUE, 0, 0, 0, &siStartInfo, &piProcInfo)) return 0;
+  CloseHandle(piProcInfo.hThread);
+  return piProcInfo.hProcess;
+#else
   pid_t pid;
-  int pipein[2], pipeout[2], pipeerr[2];
-  //DEBUG_MSG(DLVL_DEVEL, "setHandler");
   setHandler();
-  if (fdin && *fdin == -1 && pipe(pipein) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stdin pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    return 0;
-  }
-  if (fdout && *fdout == -1 && pipe(pipeout) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stdout pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (*fdin == -1) {
-      close(pipein[0]);
-      close(pipein[1]);
-    }
-    return 0;
-  }
-  if (fderr && *fderr == -1 && pipe(pipeerr) < 0) {
-    DEBUG_MSG(DLVL_ERROR, "stderr pipe creation failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (*fdin == -1) {
-      close(pipein[0]);
-      close(pipein[1]);
-    }
-    if (*fdout == -1) {
-      close(pipeout[0]);
-      close(pipeout[1]);
-    }
-    return 0;
-  }
-  int devnull = -1;
-  if (!fdin || !fdout || !fderr) {
-    devnull = open("/dev/null", O_RDWR);
-    if (devnull == -1) {
-      DEBUG_MSG(DLVL_ERROR, "Could not open /dev/null for process %s, reason: %s", argv[0], strerror(errno));
-      if (*fdin == -1) {
-        close(pipein[0]);
-        close(pipein[1]);
-      }
-      if (*fdout == -1) {
-        close(pipeout[0]);
-        close(pipeout[1]);
-      }
-      if (*fderr == -1) {
-        close(pipeerr[0]);
-        close(pipeerr[1]);
-      }
-      return 0;
-    }
-  }
   pid = fork();
   if (pid == 0) { //child
-    if (!fdin) {
-      dup2(devnull, STDIN_FILENO);
-    } else if (*fdin == -1) {
-      close(pipein[1]); // close unused write end
-      dup2(pipein[0], STDIN_FILENO);
-      close(pipein[0]);
-    } else if (*fdin != STDIN_FILENO) {
-      dup2(*fdin, STDIN_FILENO);
-    }
-    if (!fdout) {
-      dup2(devnull, STDOUT_FILENO);
-    } else if (*fdout == -1) {
-      close(pipeout[0]); // close unused read end
-      dup2(pipeout[1], STDOUT_FILENO);
-      close(pipeout[1]);
-    } else if (*fdout != STDOUT_FILENO) {
-      dup2(*fdout, STDOUT_FILENO);
-    }
-    if (!fderr) {
-      dup2(devnull, STDERR_FILENO);
-    } else if (*fderr == -1) {
-      close(pipeerr[0]); // close unused read end
-      dup2(pipeerr[1], STDERR_FILENO);
-      close(pipeerr[1]);
-    } else if (*fderr != STDERR_FILENO) {
-      dup2(*fderr, STDERR_FILENO);
-    }
-    if (fdin && *fdin != -1 && *fdin != STDIN_FILENO) {
-      close(*fdin);
-    }
-    if (fdout && *fdout != -1 && *fdout != STDOUT_FILENO) {
-      close(*fdout);
-    }
-    if (fderr && *fderr != -1 && *fderr != STDERR_FILENO) {
-      close(*fderr);
-    }
-    if (devnull != -1) {
-      close(devnull);
-    }
     execvp(argv[0], argv);
     DEBUG_MSG(DLVL_ERROR, "execvp failed for process %s, reason: %s", argv[0], strerror(errno));
     exit(42);
   } else if (pid == -1) {
     DEBUG_MSG(DLVL_ERROR, "fork failed for process %s, reason: %s", argv[0], strerror(errno));
-    if (fdin && *fdin == -1) {
-      close(pipein[0]);
-      close(pipein[1]);
-    }
-    if (fdout && *fdout == -1) {
-      close(pipeout[0]);
-      close(pipeout[1]);
-    }
-    if (fderr && *fderr == -1) {
-      close(pipeerr[0]);
-      close(pipeerr[1]);
-    }
-    if (devnull != -1) {
-      close(devnull);
-    }
     return 0;
   } else { //parent
     plist.insert(pid);
-    DEBUG_MSG(DLVL_HIGH, "Piped process %s started, PID %d", argv[0], pid);
-    if (devnull != -1) {
-      close(devnull);
-    }
-    if (fdin && *fdin == -1) {
-      close(pipein[0]); // close unused end end
-      *fdin = pipein[1];
-    }
-    if (fdout && *fdout == -1) {
-      close(pipeout[1]); // close unused write end
-      *fdout = pipeout[0];
-    }
-    if (fderr && *fderr == -1) {
-      close(pipeerr[1]); // close unused write end
-      *fderr = pipeerr[0];
-    }
+    DEBUG_MSG(DLVL_HIGH, "Process %s started, PID %d", argv[0], pid);
   }
   return pid;
+#endif
 }
 
 /// Stops the process with this pid, if running.
 /// \arg name The PID of the process to stop.
 void Util::Procs::Stop(pid_t name) {
-  kill(name, SIGTERM);  
+#ifdef _WIN32
+  Murder(name);
+#else
+  kill(name, SIGTERM);
+#endif
 }
 
 /// Stops the process with this pid, if running.
 /// \arg name The PID of the process to murder.
 void Util::Procs::Murder(pid_t name) {
+#ifdef _WIN32
+  TerminateProcess(name, -1);
+#else
   kill(name, SIGKILL);  
+#endif
 }
 
 /// (Attempts to) stop all running child processes.
@@ -368,6 +362,10 @@ int Util::Procs::Count() {
 
 /// Returns true if a process with this PID is currently active.
 bool Util::Procs::isActive(pid_t name) {
-  return (plist.count(name) == 1) && (kill(name, 0) == 0);
+  #ifdef _WIN32
+  return isRunning(name);
+  #else
+  return (plist.count(name) == 1 && isRunning(name));
+  #endif
 }
 

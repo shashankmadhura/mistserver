@@ -158,6 +158,9 @@ add_library (mist
 if (NOT APPLE)
   set (LIBRT -lrt)
 endif()
+if (WINDOWS)
+  set (LIBRT -lws2_32)
+endif()
 target_link_libraries(mist 
   -lpthread 
   ${LIBRT}

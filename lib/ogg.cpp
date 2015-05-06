@@ -3,7 +3,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sstream>
-#include <arpa/inet.h>
 #include <iomanip>
 #include "bitstream.h"
 

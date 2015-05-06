@@ -1,7 +1,6 @@
 #include "theora.h"
 #include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <sstream>
 #include "defines.h"
 

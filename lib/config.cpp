@@ -13,6 +13,7 @@
 #include <windows.h>
 #endif
 
+#ifndef _WIN32
 #if defined(__FreeBSD__) || defined(__APPLE__) || defined(__MACH__)
 #include <sys/wait.h>
 #else
@@ -21,13 +22,15 @@
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
+#include <pwd.h>
+#endif
+
 #include <errno.h>
 #include <iostream>
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <pwd.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <fstream>
@@ -358,6 +361,9 @@ int Util::Config::threadServer(Socket::Server & server_socket, int (*callback)(S
 }
 
 int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Socket::Connection &)) {
+#ifdef _WIN32
+  return threadServer(server_socket, callback);
+#else
   while (is_active && server_socket.connected()) {
     Socket::Connection S = server_socket.accept();
     if (S.connected()) { //check if the new connection is valid
@@ -366,7 +372,7 @@ int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Soc
         server_socket.drop();
         return callback(S);
       } else { //otherwise, do nothing or output debugging text
-        DEBUG_MSG(DLVL_HIGH, "Forked new process %i for socket %i", (int)myid, S.getSocket());
+        DEBUG_MSG(DLVL_HIGH, "Forked new process %p for socket %i", (void*)myid, S.getSocket());
         S.drop();
       }
     } else {
@@ -375,13 +381,11 @@ int Util::Config::forkServer(Socket::Server & server_socket, int (*callback)(Soc
   }
   server_socket.close();
   return 0;
+#endif
 }
 
 int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
   Socket::Server server_socket;
-  if (vals.isMember("socket")) {
-    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }
   if (vals.isMember("listen_port") && vals.isMember("listen_interface")) {
     server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
   }
@@ -396,9 +400,6 @@ int Util::Config::serveThreadedSocket(int (*callback)(Socket::Connection &)) {
 
 int Util::Config::serveForkedSocket(int (*callback)(Socket::Connection & S)) {
   Socket::Server server_socket;
-  if (vals.isMember("socket")) {
-    server_socket = Socket::Server(Util::getTmpFolder() + getString("socket"));
-  }
   if (vals.isMember("listen_port") && vals.isMember("listen_interface")) {
     server_socket = Socket::Server(getInteger("listen_port"), getString("listen_interface"), false);
   }
@@ -429,6 +430,7 @@ void Util::Config::activate() {
     }
     vals.removeMember("daemonize");
   }
+  #ifndef _WIN32
   struct sigaction new_action;
   struct sigaction cur_action;
   new_action.sa_handler = signal_handler;
@@ -443,6 +445,7 @@ void Util::Config::activate() {
   if (cur_action.sa_handler == SIG_DFL || cur_action.sa_handler == SIG_IGN) {
     sigaction(SIGCHLD, &new_action, NULL);
   }
+  #endif
   is_active = true;
 }
 
@@ -450,6 +453,7 @@ void Util::Config::activate() {
 /// a SIGINT, SIGHUP or SIGTERM signal, reaps children for the SIGCHLD
 /// signal, and ignores all other signals.
 void Util::Config::signal_handler(int signum) {
+  #ifndef _WIN32
   switch (signum) {
     case SIGINT: //these three signals will set is_active to false.
     case SIGHUP:
@@ -470,6 +474,7 @@ void Util::Config::signal_handler(int signum) {
     default: //other signals are ignored
       break;
   }
+  #endif
 } //signal_handler
 
 /// Adds the default connector options. Also updates the capabilities structure with the default options.
@@ -550,7 +555,7 @@ void Util::Config::addBasicConnectorOptions(JSON::Value & capabilities) {
 /// Gets directory the current executable is stored in.
 std::string Util::getMyPath() {
   char mypath[500];
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
   GetModuleFileName(0, mypath, 500);
 #else
 #ifdef __APPLE__
@@ -581,7 +586,7 @@ std::string Util::getMyPath() {
 /// Gets all executables in getMyPath that start with "Mist".
 void Util::getMyExec(std::deque<std::string> & execs) {
   std::string path = Util::getMyPath();
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
   path += "\\Mist*";
   WIN32_FIND_DATA FindFileData;
   HANDLE hdl = FindFirstFile(path.c_str(), &FindFileData);
@@ -612,6 +617,8 @@ void Util::getMyExec(std::deque<std::string> & execs) {
 
 /// Sets the current process' running user
 void Util::setUser(std::string username) {
+  #ifndef _WIN32
+  /// \todo Implement on Windows?
   if (username != "root") {
     struct passwd * user_info = getpwnam(username.c_str());
     if (!user_info) {
@@ -625,6 +632,7 @@ void Util::setUser(std::string username) {
       }
     }
   }
+  #endif
 }
 
 /// Will turn the current process into a daemon.
@@ -632,6 +640,8 @@ void Util::setUser(std::string username) {
 /// Does not change directory to root.
 /// Does redirect output to /dev/null
 void Util::Daemonize(bool notClose) {
+  #ifndef _WIN32
+  /// \todo Implement on Windows?
   DEBUG_MSG(DLVL_DEVEL, "Going into background mode...");
   int noClose = 0;
   if (notClose) {
@@ -640,4 +650,6 @@ void Util::Daemonize(bool notClose) {
   if (daemon(1, noClose) < 0) {
     DEBUG_MSG(DLVL_ERROR, "Failed to daemonize: %s", strerror(errno));
   }
+  #endif
 }
+

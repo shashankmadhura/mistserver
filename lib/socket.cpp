@@ -6,8 +6,9 @@
 #include "timing.h"
 #include "defines.h"
 #include <sys/stat.h>
-#include <poll.h>
+#ifndef _WIN32
 #include <netdb.h>
+#endif
 #include <sstream>
 #include <cstdlib>
 
@@ -17,8 +18,28 @@
 
 #define BUFFER_BLOCKSIZE 4096 //set buffer blocksize to 4KiB
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
+#include <ws2tcpip.h>
+#ifndef EWOULDBLOCK
+  #define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+#ifndef EINTR
+  #define EINTR WSAEINTR
+#endif
 #define SOCKETSIZE 8092ul
+static void kill_WSA(void){
+  WSACleanup();
+}
+
+static void initWSA(){
+  static bool wsa_inited = false;
+  if (!wsa_inited){
+    WSAData wsaData;
+    if (!WSAStartup(MAKEWORD(1, 1), &wsaData)){
+      atexit(kill_WSA);
+    }
+  }
+}
 #else
 #define SOCKETSIZE 51200ul
 #endif
@@ -174,7 +195,7 @@ Socket::Connection::Connection(int sockNo) {
   down = 0;
   conntime = Util::epoch();
   Error = false;
-  Blocking = false;
+  Blocking = true;
 } //Socket::Connection basic constructor
 
 /// Simulate a socket using two file descriptors.
@@ -188,7 +209,7 @@ Socket::Connection::Connection(int write, int read) {
   down = 0;
   conntime = Util::epoch();
   Error = false;
-  Blocking = false;
+  Blocking = true;
 } //Socket::Connection basic constructor
 
 /// Create a new disconnected base socket. This is a basic constructor for placeholder purposes.
@@ -201,11 +222,15 @@ Socket::Connection::Connection() {
   down = 0;
   conntime = Util::epoch();
   Error = false;
-  Blocking = false;
+  Blocking = true;
 } //Socket::Connection basic constructor
 
 /// Internally used call to make an file descriptor blocking or not.
 void setFDBlocking(int FD, bool blocking) {
+  #ifdef _WIN32
+  u_long newState = blocking?0:1;
+  ioctlsocket(FD, FIONBIO, &newState);
+  #else
   int flags = fcntl(FD, F_GETFL, 0);
   if (!blocking) {
     flags |= O_NONBLOCK;
@@ -213,16 +238,22 @@ void setFDBlocking(int FD, bool blocking) {
     flags &= !O_NONBLOCK;
   }
   fcntl(FD, F_SETFL, flags);
+  #endif
 }
 
 /// Internally used call to make an file descriptor blocking or not.
 bool isFDBlocking(int FD) {
+  #ifdef _WIN32
+  return true;
+  #else
   int flags = fcntl(FD, F_GETFL, 0);
   return !(flags & O_NONBLOCK);
+  #endif
 }
 
 /// Set this socket to be blocking (true) or nonblocking (false).
 void Socket::Connection::setBlocking(bool blocking) {
+  Blocking = blocking;
   if (sock >= 0) {
     setFDBlocking(sock, blocking);
   }
@@ -235,7 +266,10 @@ void Socket::Connection::setBlocking(bool blocking) {
 }
 
 /// Set this socket to be blocking (true) or nonblocking (false).
-bool Socket::Connection::isBlocking() {
+bool Socket::Connection::isBlocking(){
+#ifdef _WIN32
+  return Blocking;
+#else
   if (sock >= 0) {
     return isFDBlocking(sock);
   }
@@ -246,6 +280,7 @@ bool Socket::Connection::isBlocking() {
     return isFDBlocking(pipes[1]);
   }
   return false;
+#endif
 }
 
 /// Close connection. The internal socket is closed and then set to -1.
@@ -254,7 +289,11 @@ bool Socket::Connection::isBlocking() {
 /// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Connection::close() {
   if (sock != -1) {
+    #ifdef _WIN32
+    shutdown(sock, 2);
+    #else
     shutdown(sock, SHUT_RDWR);
+    #endif
   }
   drop();
 } //Socket::Connection::close
@@ -265,6 +304,11 @@ void Socket::Connection::close() {
 /// processes.
 void Socket::Connection::drop() {
   if (connected()) {
+    #ifdef _WIN32
+    if (sock != -1){closesocket(sock); sock = -1;}
+    if (pipes[0] != -1){closesocket(pipes[0]); pipes[0] = -1;}
+    if (pipes[1] != -1){closesocket(pipes[1]); pipes[1] = -1;}
+    #else
     if (sock != -1) {
       DEBUG_MSG(DLVL_HIGH, "Socket %d closed", sock);
       errno = EINTR;
@@ -284,6 +328,7 @@ void Socket::Connection::drop() {
       }
       pipes[1] = -1;
     }
+    #endif
   }
 } //Socket::Connection::drop
 
@@ -312,50 +357,19 @@ std::string Socket::Connection::getError() {
   return remotehost;
 }
 
-/// Create a new Unix Socket. This socket will (try to) connect to the given address right away.
-/// \param address String containing the location of the Unix socket to connect to.
-/// \param nonblock Whether the socket should be nonblocking. False by default.
-Socket::Connection::Connection(std::string address, bool nonblock) {
-  pipes[0] = -1;
-  pipes[1] = -1;
-  sock = socket(PF_UNIX, SOCK_STREAM, 0);
-  if (sock < 0) {
-    remotehost = strerror(errno);
-    DEBUG_MSG(DLVL_FAIL, "Could not create socket! Error: %s", remotehost.c_str());
-    return;
-  }
-  Error = false;
-  Blocking = false;
-  up = 0;
-  down = 0;
-  conntime = Util::epoch();
-  sockaddr_un addr;
-  addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, address.c_str(), address.size() + 1);
-  int r = connect(sock, (sockaddr *) &addr, sizeof(addr));
-  if (r == 0) {
-    if (nonblock) {
-      int flags = fcntl(sock, F_GETFL, 0);
-      flags |= O_NONBLOCK;
-      fcntl(sock, F_SETFL, flags);
-    }
-  } else {
-    remotehost = strerror(errno);
-    DEBUG_MSG(DLVL_FAIL, "Could not connect to %s! Error: %s", address.c_str(), remotehost.c_str());
-    close();
-  }
-} //Socket::Connection Unix Contructor
-
 /// Create a new TCP Socket. This socket will (try to) connect to the given host/port right away.
 /// \param host String containing the hostname to connect to.
 /// \param port String containing the port to connect to.
 /// \param nonblock Whether the socket should be nonblocking.
 Socket::Connection::Connection(std::string host, int port, bool nonblock) {
+  #ifdef _WIN32
+  initWSA();
+  #endif
   pipes[0] = -1;
   pipes[1] = -1;
   struct addrinfo * result, *rp, hints;
   Error = false;
-  Blocking = false;
+  Blocking = true;
   up = 0;
   down = 0;
   conntime = Util::epoch();
@@ -365,7 +379,9 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock) {
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
+  #ifndef _WIN32
   hints.ai_flags = AI_ADDRCONFIG;
+  #endif
   hints.ai_protocol = 0;
   hints.ai_canonname = NULL;
   hints.ai_addr = NULL;
@@ -396,9 +412,7 @@ Socket::Connection::Connection(std::string host, int port, bool nonblock) {
     close();
   } else {
     if (nonblock) {
-      int flags = fcntl(sock, F_GETFL, 0);
-      flags |= O_NONBLOCK;
-      fcntl(sock, F_SETFL, flags);
+      setBlocking(false);
     }
   }
 } //Socket::Connection TCP Contructor
@@ -494,11 +508,19 @@ unsigned int Socket::Connection::iwrite(const void * buffer, int len) {
     return 0;
   }
   int r;
+  #ifdef _WIN32
+  if (sock >= 0) {
+    r = send(sock, (const char*)buffer, len, 0);
+  } else {
+    r = send(pipes[0], (const char*)buffer, len, 0);
+  }
+  #else
   if (sock >= 0) {
     r = send(sock, buffer, len, 0);
   } else {
     r = write(pipes[0], buffer, len);
   }
+  #endif
   if (r < 0) {
     switch (errno) {
       case EWOULDBLOCK:
@@ -533,6 +555,13 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
     return 0;
   }
   int r;
+  #ifdef _WIN32
+  if (sock >= 0) {
+    r = recv(sock, (char*)buffer, len, flags);
+  } else {
+    r = recv(pipes[1], (char*)buffer, len, flags);
+  }
+  #else
   if (sock >= 0) {
     r = recv(sock, buffer, len, flags);
   } else {
@@ -541,8 +570,14 @@ int Socket::Connection::iread(void * buffer, int len, int flags) {
       r = read(pipes[1], buffer, len);
     }
   }
+  #endif
   if (r < 0) {
-    switch (errno) {
+    #ifdef _WIN32
+    int currErr = WSAGetLastError();
+    #else
+    int currErr = errno;
+    #endif
+    switch (currErr) {
       case EWOULDBLOCK:
         return 0;
         break;
@@ -613,7 +648,9 @@ std::string Socket::Connection::getBinHost() {
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
+    #ifndef _WIN32
     hints.ai_flags = AI_ADDRCONFIG;
+    #endif
     hints.ai_protocol = 0;
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
@@ -670,7 +707,9 @@ bool Socket::Connection::isAddress(std::string addr) {
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
+  #ifndef _WIN32
   hints.ai_flags = AI_ADDRCONFIG | AI_V4MAPPED;
+  #endif
   hints.ai_protocol = 0;
   hints.ai_canonname = NULL;
   hints.ai_addr = NULL;
@@ -683,6 +722,8 @@ bool Socket::Connection::isAddress(std::string addr) {
   char newaddr[INET_ADDRSTRLEN];
   newaddr[0] = 0;
   for (rp = result; rp != NULL; rp = rp->ai_next) {
+    #ifndef _WIN32
+    /// \todo Make this work for windows. Haha. Yeah, right.
     if (rp->ai_family == AF_INET && inet_ntop(rp->ai_family, &(((sockaddr_in *)rp->ai_addr)->sin_addr), newaddr, INET_ADDRSTRLEN)) {
       DEBUG_MSG(DLVL_DEVEL, "Comparing: '%s'  to '%s'", remotehost.c_str(), newaddr);
       if (remotehost == newaddr) {
@@ -699,6 +740,7 @@ bool Socket::Connection::isAddress(std::string addr) {
         return true;
       }
     }
+    #endif
   }
   freeaddrinfo(result);
   return false;
@@ -716,6 +758,9 @@ Socket::Server::Server() {
 /// \param hostname (optional) The interface to bind to. The default is 0.0.0.0 (all interfaces).
 /// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
 Socket::Server::Server(int port, std::string hostname, bool nonblock) {
+  #ifdef _WIN32
+  initWSA();
+  #endif
   if (!IPv6bind(port, hostname, nonblock) && !IPv4bind(port, hostname, nonblock)) {
     DEBUG_MSG(DLVL_FAIL, "Could not create socket %s:%i! Error: %s", hostname.c_str(), port, errors.c_str());
     sock = -1;
@@ -735,25 +780,29 @@ bool Socket::Server::IPv6bind(int port, std::string hostname, bool nonblock) {
     return false;
   }
   int on = 1;
-  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-#ifdef __CYGWIN__
+  #ifdef _WIN32
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on));
   on = 0;
-  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &on, sizeof(on));
-#endif
+  setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&on, sizeof(on));
+  #else
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  #endif
   if (nonblock) {
-    int flags = fcntl(sock, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(sock, F_SETFL, flags);
+    setBlocking(!nonblock);
   }
   struct sockaddr_in6 addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin6_family = AF_INET6;
   addr.sin6_port = htons(port); //set port
+  #ifdef _WIN32
+  addr.sin6_addr = in6addr_any;
+  #else
   if (hostname == "0.0.0.0" || hostname.length() == 0) {
     addr.sin6_addr = in6addr_any;
   } else {
     inet_pton(AF_INET6, hostname.c_str(), &addr.sin6_addr); //set interface, 0.0.0.0 (default) is all
   }
+  #endif
   int ret = bind(sock, (sockaddr *) &addr, sizeof(addr)); //do the actual bind
   if (ret == 0) {
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
@@ -787,21 +836,27 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock) {
     return false;
   }
   int on = 1;
+  #ifdef _WIN32
+  setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(on));
+  #else
   setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  #endif
   if (nonblock) {
-    int flags = fcntl(sock, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(sock, F_SETFL, flags);
+    setBlocking(!nonblock);
   }
   struct sockaddr_in addr4;
   memset(&addr4, 0, sizeof(addr4));
   addr4.sin_family = AF_INET;
   addr4.sin_port = htons(port); //set port
+  #ifdef _WIN32
+  addr4.sin_addr.s_addr = INADDR_ANY;
+  #else
   if (hostname == "0.0.0.0" || hostname.length() == 0) {
     addr4.sin_addr.s_addr = INADDR_ANY;
   } else {
     inet_pton(AF_INET, hostname.c_str(), &addr4.sin_addr); //set interface, 0.0.0.0 (default) is all
   }
+  #endif
   int ret = bind(sock, (sockaddr *) &addr4, sizeof(addr4)); //do the actual bind
   if (ret == 0) {
     ret = listen(sock, 100); //start listening, backlog of 100 allowed
@@ -822,47 +877,6 @@ bool Socket::Server::IPv4bind(int port, std::string hostname, bool nonblock) {
   }
 }
 
-/// Create a new Unix Server. The socket is immediately bound and set to listen.
-/// A maximum of 100 connections will be accepted between accept() calls.
-/// Any further connections coming in will be dropped.
-/// The address used will first be unlinked - so it succeeds if the Unix socket already existed. Watch out for this behaviour - it will delete any file located at address!
-/// \param address The location of the Unix socket to bind to.
-/// \param nonblock (optional) Whether accept() calls will be nonblocking. Default is false (blocking).
-Socket::Server::Server(std::string address, bool nonblock) {
-  unlink(address.c_str());
-  sock = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (sock < 0) {
-    errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Could not create unix socket %s! Error: %s", address.c_str(), errors.c_str());
-    return;
-  }
-  if (nonblock) {
-    int flags = fcntl(sock, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(sock, F_SETFL, flags);
-  }
-  sockaddr_un addr;
-  addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, address.c_str(), address.size() + 1);
-  int ret = bind(sock, (sockaddr *) &addr, sizeof(addr));
-  if (ret == 0) {
-    ret = listen(sock, 100); //start listening, backlog of 100 allowed
-    if (ret == 0) {
-      return;
-    } else {
-      errors = strerror(errno);
-      DEBUG_MSG(DLVL_ERROR, "Unix listen failed! Error: %s", errors.c_str());
-      close();
-      return;
-    }
-  } else {
-    errors = strerror(errno);
-    DEBUG_MSG(DLVL_ERROR, "Unix Binding %s failed (%s)", address.c_str(), errors.c_str());
-    close();
-    return;
-  }
-} //Socket::Server Unix Constructor
-
 /// Accept any waiting connections. If the Socket::Server is blocking, this function will block until there is an incoming connection.
 /// If the Socket::Server is nonblocking, it might return a Socket::Connection that is not connected, so check for this.
 /// \param nonblock (optional) Whether the newly connected socket should be nonblocking. Default is false (blocking).
@@ -877,11 +891,6 @@ Socket::Connection Socket::Server::accept(bool nonblock) {
   int r = ::accept(sock, (sockaddr *) &addrinfo, &len);
   //set the socket to be nonblocking, if requested.
   //we could do this through accept4 with a flag, but that call is non-standard...
-  if ((r >= 0) && nonblock) {
-    int flags = fcntl(r, F_GETFL, 0);
-    flags |= O_NONBLOCK;
-    fcntl(r, F_SETFL, flags);
-  }
   Socket::Connection tmp(r);
   if (r < 0) {
     if ((errno != EWOULDBLOCK) && (errno != EAGAIN) && (errno != EINTR)) {
@@ -889,6 +898,10 @@ Socket::Connection Socket::Server::accept(bool nonblock) {
       close();
     }
   } else {
+    if (nonblock){
+      tmp.setBlocking(!nonblock);
+    }
+    #ifndef _WIN32
     if (addrinfo.sin6_family == AF_INET6) {
       tmp.remotehost = inet_ntop(AF_INET6, &(addrinfo.sin6_addr), addrconv, INET6_ADDRSTRLEN);
       DEBUG_MSG(DLVL_HIGH, "IPv6 addr [%s]", tmp.remotehost.c_str());
@@ -897,10 +910,7 @@ Socket::Connection Socket::Server::accept(bool nonblock) {
       tmp.remotehost = inet_ntop(AF_INET, &(((sockaddr_in *) &addrinfo)->sin_addr), addrconv, INET6_ADDRSTRLEN);
       DEBUG_MSG(DLVL_HIGH, "IPv4 addr [%s]", tmp.remotehost.c_str());
     }
-    if (addrinfo.sin6_family == AF_UNIX) {
-      DEBUG_MSG(DLVL_HIGH, "Unix connection");
-      tmp.remotehost = "UNIX_SOCKET";
-    }
+    #endif
   }
   return tmp;
 }
@@ -926,7 +936,11 @@ bool Socket::Server::isBlocking() {
 /// processes as well. Do not use on shared sockets that are still in use.
 void Socket::Server::close() {
   if (sock != -1) {
+    #ifdef _WIN32
+    shutdown(sock, 2);
+    #else
     shutdown(sock, SHUT_RDWR);
+    #endif
   }
   drop();
 } //Socket::Server::close
@@ -938,10 +952,14 @@ void Socket::Server::close() {
 void Socket::Server::drop() {
   if (connected()) {
     if (sock != -1) {
+      #ifdef _WIN32
+      closesocket(sock);
+      #else
       DEBUG_MSG(DLVL_HIGH, "ServerSocket %d closed", sock);
       errno = EINTR;
       while (::close(sock) != 0 && errno == EINTR) {
       }
+      #endif
       sock = -1;
     }
   }
@@ -1042,15 +1060,19 @@ void Socket::UDPConnection::SetDestination(std::string destIp, uint32_t port) {
     memset(destAddr, 0, destAddr_size);
     ((struct sockaddr_in6 *)destAddr)->sin6_family = AF_INET6;
     ((struct sockaddr_in6 *)destAddr)->sin6_port = htons(port);
+    #ifndef _WIN32
     if (inet_pton(AF_INET6, destIp.c_str(), &(((struct sockaddr_in6 *)destAddr)->sin6_addr)) == 1) {
       return;
     }
+    #endif
     memset(destAddr, 0, destAddr_size);
     ((struct sockaddr_in *)destAddr)->sin_family = AF_INET;
     ((struct sockaddr_in *)destAddr)->sin_port = htons(port);
+    #ifndef _WIN32
     if (inet_pton(AF_INET, destIp.c_str(), &(((struct sockaddr_in *)destAddr)->sin_addr)) == 1) {
       return;
     }
+    #endif
   }
   free(destAddr);
   destAddr = 0;
@@ -1068,18 +1090,22 @@ void Socket::UDPConnection::GetDestination(std::string & destIp, uint32_t & port
   char addr_str[INET6_ADDRSTRLEN + 1];
   addr_str[INET6_ADDRSTRLEN] = 0;//set last byte to zero, to prevent walking out of the array
   if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET6) {
+    #ifndef _WIN32
     if (inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)destAddr)->sin6_addr), addr_str, INET6_ADDRSTRLEN) != 0) {
       destIp = addr_str;
       port = ntohs(((struct sockaddr_in6 *)destAddr)->sin6_port);
       return;
     }
+    #endif
   }
   if (((struct sockaddr_in *)destAddr)->sin_family == AF_INET) {
+    #ifndef _WIN32
     if (inet_ntop(AF_INET, &(((struct sockaddr_in *)destAddr)->sin_addr), addr_str, INET6_ADDRSTRLEN) != 0) {
       destIp = addr_str;
       port = ntohs(((struct sockaddr_in *)destAddr)->sin_port);
       return;
     }
+    #endif
   }
   destIp = "";
   port = 0;
@@ -1161,7 +1187,11 @@ int Socket::UDPConnection::bind(int port) {
 /// If a packet is received, it will be placed in the "data" member, with it's length in "data_len".
 /// \return True if a packet was received, false otherwise.
 bool Socket::UDPConnection::Receive() {
+  #ifdef _WIN32
+  int r = recvfrom(sock, data, data_size, MSG_PEEK, 0, 0);
+  #else
   int r = recvfrom(sock, data, data_size, MSG_PEEK | MSG_TRUNC, 0, 0);
+  #endif
   if (data_size < (unsigned int)r) {
     data = (char *)realloc(data, r);
     if (data) {

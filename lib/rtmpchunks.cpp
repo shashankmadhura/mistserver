@@ -23,8 +23,6 @@ unsigned int RTMPStream::snd_window_at = 0;
 unsigned int RTMPStream::rec_cnt = 0;
 unsigned int RTMPStream::snd_cnt = 0;
 
-timeval RTMPStream::lastrec;
-
 /// Holds the last sent chunk for every msg_id.
 std::map<unsigned int, RTMPStream::Chunk> RTMPStream::lastsend;
 /// Holds the last received chunk for every msg_id.
@@ -333,7 +331,6 @@ std::string & RTMPStream::SendUSR(unsigned char type, unsigned int data, unsigne
 /// \warning This function will destroy the current data in this chunk!
 /// \returns True if a whole chunk could be read, false otherwise.
 bool RTMPStream::Chunk::Parse(Socket::Buffer & buffer) {
-  gettimeofday(&RTMPStream::lastrec, 0);
   unsigned int i = 0;
   if (!buffer.available(3)) {
     return false;

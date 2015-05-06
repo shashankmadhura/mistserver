@@ -17,11 +17,13 @@
 #if DEBUG > -1
 
 #ifndef ACCESSPERMS
-#define ACCESSPERMS (S_IRWXU|S_IRWXG|S_IRWXO) 
+#define ACCESSPERMS S_IRWXU 
 #endif
 
 #include <stdio.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include "config.h"
 static const char * DBG_LVL_LIST[] = {"NONE", "FAIL", "ERROR", "WARN", "INFO", "MEDIUM", "HIGH", "VERYHIGH", "EXTREME", "INSANE", "DONTEVEN"};
 

@@ -1,5 +1,6 @@
 #include "auth.h"
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
 #include <sstream>
@@ -278,12 +279,13 @@ namespace Secure {
   /// Output is returned as hexadecimal alphanumeric string.
   /// The hasher function must be the "bin" version of the hasher to have a compatible function signature.
   std::string hmac(const char * msg, const unsigned int msg_len, const char * key, const unsigned int key_len, unsigned int hashSize, void hasher(const char *, const unsigned int, char*), unsigned int blockSize){
-    char output[hashSize];
+    char * output = (char*)malloc(hashSize);
     hmacbin(msg, msg_len, key, key_len, hashSize, hasher, blockSize, output);
     std::stringstream outStr;
     for (unsigned int i = 0; i < hashSize; ++i){
       outStr << std::hex << std::setw(2) << std::setfill('0') << (unsigned int)(output[i] & 0xff);
     }
+    free(output);
     return outStr.str();
   }
 
@@ -292,7 +294,7 @@ namespace Secure {
   /// Output is written in binary form to output, and assumes hashSize bytes are available to be written to.
   /// The hasher function must be the "bin" version of the hasher to have a compatible function signature.
   void hmacbin(const char * msg, const unsigned int msg_len, const char * key, const unsigned int key_len, unsigned int hashSize, void hasher(const char*, const unsigned int, char*), unsigned int blockSize, char * output){
-    char key_data[blockSize];//holds key as used in HMAC algorithm
+    char * key_data = (char*)malloc(blockSize);//holds key as used in HMAC algorithm
     if (key_len > blockSize){
       //If the key given is too big, hash it.
       hasher(key, key_len, key_data);
@@ -303,8 +305,8 @@ namespace Secure {
       memset(key_data+key_len, 0, blockSize-key_len);
     }
     //key_data now contains hashSize bytes of key data, treated as per spec.
-    char inner[blockSize+msg_len];//holds data for inner hash
-    char outer[blockSize+hashSize];//holds data for outer hash
+    char * inner = (char*)malloc(blockSize+msg_len);//holds data for inner hash
+    char * outer = (char*)malloc(blockSize+hashSize);//holds data for outer hash
     for (unsigned int i = 0; i < blockSize; ++i){
       inner[i] = key_data[i] ^ 0x36;
       outer[i] = key_data[i] ^ 0x5c;
@@ -315,6 +317,9 @@ namespace Secure {
     hasher(inner, blockSize+msg_len, outer+blockSize);
     //Calculate the outer hash
     hasher(outer, blockSize+hashSize, output);
+    free(key_data);
+    free(inner);
+    free(outer);
   }
 
   /// Convenience function that returns the hexadecimal alphanumeric HMAC-SHA256 of msg and key

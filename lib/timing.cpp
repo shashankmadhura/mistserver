@@ -2,7 +2,6 @@
 /// Utilities for handling time and timestamps.
 
 #include "timing.h"
-#include <sys/time.h>//for gettimeofday
 #include <time.h>//for time and nanosleep
 
 //emulate clock_gettime() for OSX compatibility

@@ -5,7 +5,6 @@
 #include <map>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/time.h>
 #include <string>
 #include "socket.h"
 
@@ -25,8 +24,6 @@ namespace RTMPStream {
   extern unsigned int snd_window_at; ///< Current position of the sending window.
   extern unsigned int rec_cnt; ///< Counter for total data received, in bytes.
   extern unsigned int snd_cnt; ///< Counter for total data sent, in bytes.
-
-  extern timeval lastrec; ///< Timestamp of last time data was received.
 
   /// Holds a single RTMP chunk, either send or receive direction.
   class Chunk {

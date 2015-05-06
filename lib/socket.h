@@ -12,9 +12,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 #endif
 #include <stdint.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>

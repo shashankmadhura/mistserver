@@ -104,13 +104,13 @@ namespace Mist {
     if (conncapa.isMember("codecs") && conncapa["codecs"].size() > 0){
       for (JSON::ArrIter it = conncapa["codecs"].ArrBegin(); it != conncapa["codecs"].ArrEnd(); it++){
         unsigned int simul = 0;
-        if ((*it).size() > 0){
-          for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
+        if ((**it).size() > 0){
+          for (JSON::ArrIter itb = (**it).ArrBegin(); itb != (**it).ArrEnd(); itb++){
             unsigned int matches = 0;
-            if ((*itb).size() > 0){
-              for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd(); itc++){
+            if ((**itb).size() > 0){
+              for (JSON::ArrIter itc = (**itb).ArrBegin(); itc != (**itb).ArrEnd(); itc++){
                 for (JSON::ObjIter trit = strmMeta["tracks"].ObjBegin(); trit != strmMeta["tracks"].ObjEnd(); trit++){
-                  if (trit->second["codec"].asStringRef() == (*itc).asStringRef()){
+                  if (trit->second["codec"].asStringRef() == (**itc).asStringRef()){
                     matches++;
                     total_matches++;
                   }
@@ -136,8 +136,8 @@ namespace Mist {
         relurl = "/";
       }
       for (JSON::ArrIter it = conncapa["methods"].ArrBegin(); it != conncapa["methods"].ArrEnd(); it++){
-        if (!strmMeta.isMember("live") || !it->isMember("nolive")){
-          addSource(relurl, sources, host, port, *it, most_simul, total_matches);
+        if (!strmMeta.isMember("live") || !(*it)->isMember("nolive")){
+          addSource(relurl, sources, host, port, **it, most_simul, total_matches);
         }
       }
     }

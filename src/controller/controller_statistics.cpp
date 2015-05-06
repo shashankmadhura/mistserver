@@ -486,15 +486,15 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
     for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
-      if ((*it).asStringRef() == "host"){fields |= STAT_CLI_HOST;}
-      if ((*it).asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
-      if ((*it).asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
-      if ((*it).asStringRef() == "conntime"){fields |= STAT_CLI_CONNTIME;}
-      if ((*it).asStringRef() == "position"){fields |= STAT_CLI_POSITION;}
-      if ((*it).asStringRef() == "down"){fields |= STAT_CLI_DOWN;}
-      if ((*it).asStringRef() == "up"){fields |= STAT_CLI_UP;}
-      if ((*it).asStringRef() == "downbps"){fields |= STAT_CLI_BPS_DOWN;}
-      if ((*it).asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
+      if ((**it).asStringRef() == "host"){fields |= STAT_CLI_HOST;}
+      if ((**it).asStringRef() == "stream"){fields |= STAT_CLI_STREAM;}
+      if ((**it).asStringRef() == "protocol"){fields |= STAT_CLI_PROTO;}
+      if ((**it).asStringRef() == "conntime"){fields |= STAT_CLI_CONNTIME;}
+      if ((**it).asStringRef() == "position"){fields |= STAT_CLI_POSITION;}
+      if ((**it).asStringRef() == "down"){fields |= STAT_CLI_DOWN;}
+      if ((**it).asStringRef() == "up"){fields |= STAT_CLI_UP;}
+      if ((**it).asStringRef() == "downbps"){fields |= STAT_CLI_BPS_DOWN;}
+      if ((**it).asStringRef() == "upbps"){fields |= STAT_CLI_BPS_UP;}
     }
   }
   //select all, if none selected
@@ -503,14 +503,14 @@ void Controller::fillClients(JSON::Value & req, JSON::Value & rep){
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
     for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
-      streams.insert((*it).asStringRef());
+      streams.insert((**it).asStringRef());
     }
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
     for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
-      protos.insert((*it).asStringRef());
+      protos.insert((**it).asStringRef());
     }
   }
   //output the selected fields
@@ -639,9 +639,9 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   //next, figure out the fields wanted
   if (req.isMember("fields") && req["fields"].size()){
     for (JSON::ArrIter it = req["fields"].ArrBegin(); it != req["fields"].ArrEnd(); it++){
-      if ((*it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
-      if ((*it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
-      if ((*it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
+      if ((**it).asStringRef() == "clients"){fields |= STAT_TOT_CLIENTS;}
+      if ((**it).asStringRef() == "downbps"){fields |= STAT_TOT_BPS_DOWN;}
+      if ((**it).asStringRef() == "upbps"){fields |= STAT_TOT_BPS_UP;}
     }
   }
   //select all, if none selected
@@ -650,14 +650,14 @@ void Controller::fillTotals(JSON::Value & req, JSON::Value & rep){
   std::set<std::string> streams;
   if (req.isMember("streams") && req["streams"].size()){
     for (JSON::ArrIter it = req["streams"].ArrBegin(); it != req["streams"].ArrEnd(); it++){
-      streams.insert((*it).asStringRef());
+      streams.insert((**it).asStringRef());
     }
   }
   //figure out what protocols are wanted
   std::set<std::string> protos;
   if (req.isMember("protocols") && req["protocols"].size()){
     for (JSON::ArrIter it = req["protocols"].ArrBegin(); it != req["protocols"].ArrEnd(); it++){
-      protos.insert((*it).asStringRef());
+      protos.insert((**it).asStringRef());
     }
   }
   //output the selected fields

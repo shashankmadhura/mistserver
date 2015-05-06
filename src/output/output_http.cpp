@@ -72,7 +72,7 @@ namespace Mist {
       if (capa.isMember("url_match")){
         if (capa["url_match"].isArray()){
           for (JSON::ArrIter it = capa["url_match"].ArrBegin(); it != capa["url_match"].ArrEnd(); ++it){
-            match |= isMatch(url, it->asStringRef(), streamname);
+            match |= isMatch(url, (*it)->asStringRef(), streamname);
           }
         }
         if (capa["url_match"].isString()){
@@ -83,7 +83,7 @@ namespace Mist {
       if (capa.isMember("url_prefix")){
         if (capa["url_prefix"].isArray()){
           for (JSON::ArrIter it = capa["url_prefix"].ArrBegin(); it != capa["url_prefix"].ArrEnd(); ++it){
-            match |= isPrefix(url, it->asStringRef(), streamname);
+            match |= isPrefix(url, (*it)->asStringRef(), streamname);
           }
         }
         if (capa["url_prefix"].isString()){

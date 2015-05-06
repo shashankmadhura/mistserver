@@ -25,9 +25,9 @@ namespace JSON {
   //forward declaration for below typedef
 
   typedef std::map<std::string, Value>::iterator ObjIter;
-  typedef std::deque<Value>::iterator ArrIter;
+  typedef std::deque<Value*>::iterator ArrIter;
   typedef std::map<std::string, Value>::const_iterator ObjConstIter;
-  typedef std::deque<Value>::const_iterator ArrConstIter;
+  typedef std::deque<Value*>::const_iterator ArrConstIter;
 
   /// A JSON::Value is either a string or an integer, but may also be an object, array or null.
   class Value {
@@ -35,7 +35,7 @@ namespace JSON {
       ValueType myType;
       long long int intVal;
       std::string strVal;
-      std::deque<Value> arrVal;
+      std::deque<Value*> arrVal;
       std::map<std::string, Value> objVal;
     public:
       //friends

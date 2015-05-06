@@ -298,8 +298,8 @@ bool JSON::Value::operator==(const JSON::Value & rhs) const {
   if (myType == ARRAY) {
     if (arrVal.size() != rhs.arrVal.size()) return false;
     int i = 0;
-    for (std::deque<Value>::const_iterator it = arrVal.begin(); it != arrVal.end(); ++it) {
-      if (*it != rhs.arrVal[i]) {
+    for (std::deque<Value*>::const_iterator it = arrVal.begin(); it != arrVal.end(); ++it) {
+      if (**it != *rhs.arrVal[i]) {
         return false;
       }
       i++;
@@ -468,7 +468,7 @@ JSON::Value & JSON::Value::operator[](unsigned int i) {
   while (i >= arrVal.size()) {
     append(JSON::Value());
   }
-  return arrVal[i];
+  return *arrVal[i];
 }
 
 /// Retrieves the JSON::Value at this position in the object.
@@ -486,7 +486,7 @@ const JSON::Value & JSON::Value::operator[](const char * i) const {
 /// Retrieves the JSON::Value at this position in the array.
 /// Fails horribly if that values does not exist.
 const JSON::Value & JSON::Value::operator[](unsigned int i) const {
-  return arrVal[i];
+  return *arrVal[i];
 }
 
 /// Packs to a std::string for transfer over the network.
@@ -533,7 +533,7 @@ std::string JSON::Value::toPacked() const {
   if (isArray()) {
     r += 0x0A;
     for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++) {
-      r += it->toPacked();
+      r += (*it)->toPacked();
     }
     r += (char)0x0;
     r += (char)0x0;
@@ -622,7 +622,7 @@ void JSON::Value::sendTo(Socket::Connection & socket) const {
   if (isArray()) {
     socket.SendNow("\012", 1);
     for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++) {
-      it->sendTo(socket);
+      (*it)->sendTo(socket);
     }
     socket.SendNow("\000\000\356", 3);
     return;
@@ -651,7 +651,7 @@ unsigned int JSON::Value::packedSize() const {
   if (isArray()) {
     unsigned int ret = 4;
     for (JSON::ArrConstIter it = arrVal.begin(); it != arrVal.end(); it++) {
-      ret += it->packedSize();
+      ret += (*it)->packedSize();
     }
     return ret;
   }
@@ -764,7 +764,7 @@ std::string JSON::Value::toString() const {
         std::string tmp = "[";
         if (arrVal.size() > 0) {
           for (ArrConstIter it = ArrBegin(); it != ArrEnd(); it++) {
-            tmp += it->toString();
+            tmp += (*it)->toString();
             if (it + 1 != ArrEnd()) {
               tmp += ",";
             }
@@ -821,7 +821,7 @@ std::string JSON::Value::toPrettyString(int indentation) const {
         if (arrVal.size() > 0) {
           std::string tmp = "[\n" + std::string(indentation + 2, ' ');
           for (ArrConstIter it = ArrBegin(); it != ArrEnd(); it++) {
-            tmp += it->toPrettyString(indentation + 2);
+            tmp += (*it)->toPrettyString(indentation + 2);
             if (it + 1 != ArrEnd()) {
               tmp += ", ";
             }
@@ -870,7 +870,7 @@ void JSON::Value::append(const JSON::Value & rhs) {
     null();
     myType = ARRAY;
   }
-  arrVal.push_back(rhs);
+  arrVal.push_back(new JSON::Value(rhs));
 }
 
 /// Prepends the given value to the beginning of this JSON::Value array.
@@ -880,7 +880,7 @@ void JSON::Value::prepend(const JSON::Value & rhs) {
     null();
     myType = ARRAY;
   }
-  arrVal.push_front(rhs);
+  arrVal.push_front(new JSON::Value(rhs));
 }
 
 /// For array and object JSON::Value objects, reduces them
@@ -892,6 +892,7 @@ void JSON::Value::prepend(const JSON::Value & rhs) {
 void JSON::Value::shrink(unsigned int size) {
   if (myType == ARRAY) {
     while (arrVal.size() > size) {
+      delete arrVal.front();
       arrVal.pop_front();
     }
     return;
@@ -995,7 +996,7 @@ unsigned int JSON::Value::size() const {
 /// changing its type to NULL in the process.
 void JSON::Value::null() {
   objVal.clear();
-  arrVal.clear();
+  shrink(0);
   strVal.clear();
   intVal = 0;
   myType = EMPTY;
@@ -1094,7 +1095,7 @@ void JSON::fromDTMI(const unsigned char * data, unsigned int len, unsigned int &
         ++i;
         while (data[i] + data[i + 1] != 0 && i < len) { //while not encountering 0x0000 (we assume 0x0000EE)
           ret.append(JSON::Value());
-          fromDTMI(data, len, i, *--ret.ArrEnd()); //add content, recursively parsed, updating i
+          fromDTMI(data, len, i, **--ret.ArrEnd()); //add content, recursively parsed, updating i
         }
         i += 3; //skip 0x0000EE
         return;

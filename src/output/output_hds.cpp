@@ -14,14 +14,14 @@ namespace Mist {
     JSON::Value & audCapa = capa["codecs"][0u][1u];
     for (std::map<unsigned int,DTSC::Track>::iterator it = myMeta.tracks.begin(); it != myMeta.tracks.end(); it++){
       for (JSON::ArrIter itb = vidCapa.ArrBegin(); itb != vidCapa.ArrEnd(); itb++){
-        if (it->second.codec == (*itb).asStringRef()){
+        if (it->second.codec == (**itb).asStringRef()){
           videoTracks.insert(it->first);
           break;
         }
       }
       if (!audioTrack){
         for (JSON::ArrIter itb = audCapa.ArrBegin(); itb != audCapa.ArrEnd(); itb++){
-          if (it->second.codec == (*itb).asStringRef()){
+          if (it->second.codec == (**itb).asStringRef()){
             audioTrack = it->first;
             break;
           }

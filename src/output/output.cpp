@@ -145,13 +145,13 @@ namespace Mist {
     for (JSON::ArrIter it = capa["codecs"].ArrBegin(); it != capa["codecs"].ArrEnd(); it++){
       unsigned int genCounter = 0;
       unsigned int selCounter = 0;
-      if ((*it).size() > 0){
-        for (JSON::ArrIter itb = (*it).ArrBegin(); itb != (*it).ArrEnd(); itb++){
-          if ((*itb).size() > 0){
+      if ((**it).size() > 0){
+        for (JSON::ArrIter itb = (**it).ArrBegin(); itb != (**it).ArrEnd(); itb++){
+          if ((**itb).size() > 0){
             bool found = false;
-            for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
+            for (JSON::ArrIter itc = (**itb).ArrBegin(); itc != (**itb).ArrEnd() && !found; itc++){
               for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-                if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+                if (myMeta.tracks[*itd].codec == (**itc).asStringRef()){
                   selCounter++;
                   found = true;
                   break;
@@ -159,7 +159,7 @@ namespace Mist {
               }
               if (!found){
                 for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                  if (trit->second.codec == (*itc).asStringRef()){
+                  if (trit->second.codec == (**itc).asStringRef()){
                     genCounter++;
                     found = true;
                     break;
@@ -173,10 +173,10 @@ namespace Mist {
           if (selCounter + genCounter > bestSoFarCount){
             bestSoFarCount = selCounter + genCounter;
             bestSoFar = index;
-            DEBUG_MSG(DLVL_HIGH, "Match (%u/%u): %s", selCounter, selCounter+genCounter, (*it).toString().c_str());
+            DEBUG_MSG(DLVL_HIGH, "Match (%u/%u): %s", selCounter, selCounter+genCounter, (**it).toString().c_str());
           }
         }else{
-          DEBUG_MSG(DLVL_VERYHIGH, "Not a match for currently selected tracks: %s", (*it).toString().c_str());
+          DEBUG_MSG(DLVL_VERYHIGH, "Not a match for currently selected tracks: %s", (**it).toString().c_str());
         }
       }
       index++;
@@ -186,18 +186,18 @@ namespace Mist {
     //try to fill as many codecs simultaneously as possible
     if (capa["codecs"][bestSoFar].size() > 0){
       for (JSON::ArrIter itb = capa["codecs"][bestSoFar].ArrBegin(); itb != capa["codecs"][bestSoFar].ArrEnd(); itb++){
-        if ((*itb).size() && myMeta.tracks.size()){
+        if ((**itb).size() && myMeta.tracks.size()){
           bool found = false;
-          for (JSON::ArrIter itc = (*itb).ArrBegin(); itc != (*itb).ArrEnd() && !found; itc++){
+          for (JSON::ArrIter itc = (**itb).ArrBegin(); itc != (**itb).ArrEnd() && !found; itc++){
             for (std::set<unsigned long>::iterator itd = selectedTracks.begin(); itd != selectedTracks.end(); itd++){
-              if (myMeta.tracks[*itd].codec == (*itc).asStringRef()){
+              if (myMeta.tracks[*itd].codec == (**itc).asStringRef()){
                 found = true;
                 break;
               }
             }
             if (!found){
               for (std::map<unsigned int,DTSC::Track>::iterator trit = myMeta.tracks.begin(); trit != myMeta.tracks.end(); trit++){
-                if (trit->second.codec == (*itc).asStringRef()){
+                if (trit->second.codec == (**itc).asStringRef()){
                   selectedTracks.insert(trit->first);
                   found = true;
                   break;

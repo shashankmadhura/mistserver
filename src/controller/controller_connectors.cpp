@@ -96,17 +96,17 @@ namespace Controller {
 
     for (JSON::ArrIter ait = p.ArrBegin(); ait != p.ArrEnd(); ait++){
       counter = ait - p.ArrBegin();
-      std::string prevOnline = ( *ait)["online"].asString();
-      const std::string & connName = (*ait)["connector"].asStringRef();
+      std::string prevOnline = (**ait)["online"].asString();
+      const std::string & connName = (**ait)["connector"].asStringRef();
       //do not further parse if there's no connector name
-      if ( !(*ait).isMember("connector") || connName == ""){
-        ( *ait)["online"] = "Missing connector name";
+      if ( !(**ait).isMember("connector") || connName == ""){
+        (**ait)["online"] = "Missing connector name";
         continue;
       }
       //ignore connectors that are not installed
       if ( !capabilities["connectors"].isMember(connName)){
-        ( *ait)["online"] = "Not installed";
-        if (( *ait)["online"].asString() != prevOnline){
+        (**ait)["online"] = "Not installed";
+        if ((**ait)["online"].asString() != prevOnline){
           Log("WARN", connName + " connector is enabled but doesn't exist on system! Ignoring connector.");
         }
         continue;
@@ -114,17 +114,17 @@ namespace Controller {
       //list connectors that go through HTTP as 'enabled' without actually running them.
       JSON::Value & connCapa = capabilities["connectors"][connName];
       if (connCapa.isMember("socket") || (connCapa.isMember("deps") && connCapa["deps"].asStringRef() == "HTTP")){
-        ( *ait)["online"] = "Enabled";
+        (**ait)["online"] = "Enabled";
         continue;
       }
       //check required parameters, skip if anything is missing
       if (connCapa.isMember("required")){
         bool gotAll = true;
         for (JSON::ObjIter it = connCapa["required"].ObjBegin(); it != connCapa["required"].ObjEnd(); ++it){
-          if ( !(*ait).isMember(it->first) || (*ait)[it->first].asStringRef().size() < 1){
+          if ( !(**ait).isMember(it->first) || (**ait)[it->first].asStringRef().size() < 1){
             gotAll = false;
-            ( *ait)["online"] = "Invalid configuration";
-            if (( *ait)["online"].asString() != prevOnline){
+            (**ait)["online"] = "Invalid configuration";
+            if ((**ait)["online"].asString() != prevOnline){
               Log("WARN", connName + " connector is missing required parameter " + it->first + "! Ignoring connector.");
             }
             break;
@@ -133,15 +133,15 @@ namespace Controller {
         if (!gotAll){continue;}
       }
       //remove current online status
-      ( *ait).removeMember("online");
+      (**ait).removeMember("online");
       /// \todo Check dependencies?
       //set current online status
-      std::string myCmd = (*ait).toString();
+      std::string myCmd = (**ait).toString();
       runningConns.insert(myCmd);
       if (currentConnectors.count(myCmd) && Util::Procs::isActive(currentConnectors[myCmd])){
-        ( *ait)["online"] = 1;
+        (**ait)["online"] = 1;
       }else{
-        ( *ait)["online"] = 0;
+        (**ait)["online"] = 0;
       }
     }
 

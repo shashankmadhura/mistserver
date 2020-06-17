@@ -18,6 +18,7 @@ namespace Mist{
     std::string h265init(const std::string &initData);
 
     bool hasSessionIDs(){return !config->getBool("mergesessions");}
+    std::string origin;
     std::string liveIndex();
     std::string liveIndex(size_t tid, const std::string &sessId);
 

@@ -1816,6 +1816,8 @@ namespace Mist{
     return capa["name"].asStringRef();
   }
 
+  /// Writes data to statConn once per second, or more often if force==true.
+  /// Also handles push status updates
   void Output::stats(bool force){
     // cancel stats update if not initialized
     if (!isInitialized){return;}
@@ -1875,13 +1877,14 @@ namespace Mist{
     }
     /*LTS-END*/
     statComm.setNow(now);
-    statComm.setHost(getConnectedBinHost());
-    statComm.setCRC(crc);
     statComm.setStream(streamName);
     statComm.setConnector(getStatsName());
     connStats(now, statComm);
     statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
-    statComm.setPid(getpid());
+    if (!statComm.getCRC()){
+      statComm.setHost(getConnectedBinHost());
+      statComm.setCRC(crc);
+    }
 
     /*LTS-START*/
     // Tag the session with the user agent

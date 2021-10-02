@@ -1235,6 +1235,8 @@ void Controller::statLeadIn(){
   statDropoff = Util::bootSecs() - 3;
 }
 void Controller::statOnActive(size_t id){
+  //Skip stats for connections that have no CRC yet and are not disconnected
+  if (!(statComm.getStatus(id) & COMM_STATUS_DISCONNECT) && !statComm.getCRC(id)){return;}
   // calculate the current session index, store as idx.
   sessIndex idx(statComm, id);
 
@@ -1242,10 +1244,10 @@ void Controller::statOnActive(size_t id){
     // if the connection was already indexed and it has changed, move it
     if (connToSession.count(id) && connToSession[id] != idx){
       if (sessions[connToSession[id]].getSessType() != SESS_UNSET){
-        INFO_MSG("Switching connection %zu from active session %s over to %s", id,
+        FAIL_MSG("Switching connection %zu from active session %s over to %s", id,
                  connToSession[id].toStr().c_str(), idx.toStr().c_str());
       }else{
-        INFO_MSG("Switching connection %zu from inactive session %s over to %s", id,
+        FAIL_MSG("Switching connection %zu from inactive session %s over to %s", id,
                  connToSession[id].toStr().c_str(), idx.toStr().c_str());
       }
       sessions[connToSession[id]].switchOverTo(sessions[idx], id);

@@ -31,11 +31,6 @@ namespace Mist{
       if (!hasSubs && M.getCodec(it->first) == "subtitle"){hasSubs = true;}
     }
     std::string sessId;
-    if (hasSessionIDs()){
-      std::string ua = UA + JSON::Value(getpid()).asString();
-      crc = checksum::crc32(0, ua.data(), ua.size());
-      sessId = "?sessId=" + JSON::Value(crc).asString();
-    }
     if (origin.size()){
       if (sessId.size()){sessId += "&";}else{sessId += "?";}
       sessId += "origin=" + origin;

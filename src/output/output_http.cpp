@@ -229,18 +229,15 @@ namespace Mist{
       if (hasSessionIDs()){
         if (H.GetVar("sessId").size()){
           std::string ua = H.GetVar("sessId");
-          crc = checksum::crc32(0, ua.data(), ua.size());
         }else{
           std::string ua = UA + JSON::Value(getpid()).asString();
-          crc = checksum::crc32(0, ua.data(), ua.size());
         }
       }else{
         std::string mixed_ua = UA + H.GetHeader("X-Playback-Session-Id");
-        crc = checksum::crc32(0, mixed_ua.data(), mixed_ua.size());
       }
 
       //Check if we need to change binary and/or reconnect
-      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost() || statComm.getCRC() != crc))){
+      if (handler != capa["name"].asStringRef() || H.GetVar("stream") != streamName || (statComm && (statComm.getHost() != getConnectedBinHost()))){
         MEDIUM_MSG("Switching from %s (%s) to %s (%s)", capa["name"].asStringRef().c_str(),
                    streamName.c_str(), handler.c_str(), H.GetVar("stream").c_str());
         //Prepare switch

@@ -275,7 +275,7 @@ namespace Comms{
   /// \param protocol: Protocol currently in use for this connection
   /// \param _master: If True, we are reading from this page. If False, we are writing (to our entry) on this page
   /// \param reIssue: If True, claim a new entry on this page
-  void Connections::reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master, bool reIssue){
+  void Connections::reload(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & protocol, const std::string & reqUrl, bool _master, bool reIssue){
     // Generate a unique session ID for each viewer, input or output
     uint8_t thisSessionMode;
     if (protocol.size() >= 6 && protocol.substr(0, 6) == "INPUT:"){
@@ -506,7 +506,7 @@ namespace Comms{
 
   /// \brief Generates a session ID which is unique per viewer
   /// \return generated session ID as string
-  std::string Connections::generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode){
+  std::string Connections::generateSession(const std::string & streamName, const std::string & ip, const std::string & sid, const std::string & connector, uint64_t sessionMode){
     std::string concat;
     // First bit defines whether to include stream name
     if (sessionMode & 0x08){

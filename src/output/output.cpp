@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "output.h"
+#include "output.h" 
 #include <mist/bitfields.h>
 #include <mist/defines.h>
 #include <mist/h264.h>
@@ -92,7 +92,7 @@ namespace Mist{
     firstTime = 0;
     firstPacketTime = 0xFFFFFFFFFFFFFFFFull;
     lastPacketTime = 0;
-    crc = getpid();
+    sid = "";
     parseData = false;
     wantRequest = true;
     sought = false;
@@ -100,7 +100,7 @@ namespace Mist{
     isBlocking = false;
     needsLookAhead = 0;
     extraKeepAway = 0;
-    lastStats = 0;
+    lastStats = 0xFFFFFFFFFFFFFFFFull;
     maxSkipAhead = 7500;
     uaDelay = 10;
     realTime = 1000;
@@ -111,6 +111,7 @@ namespace Mist{
     lastPushUpdate = 0;
     previousFile = "";
     currentFile = "";
+    sessionMode = 0xFFFFFFFFFFFFFFFFull;
 
     lastRecv = Util::bootSecs();
     if (myConn){
@@ -211,93 +212,7 @@ namespace Mist{
         onFail("Not allowed to play (CONN_PLAY)");
       }
     }
-    doSync(true);
     /*LTS-END*/
-  }
-
-  /// If called with force set to true and a USER_NEW trigger enabled, forces a sync immediately.
-  /// Otherwise, does nothing unless the sync byte is set to 2, in which case it forces a sync as well.
-  /// May be called recursively because it calls stats() which calls this function.
-  /// If this happens, the extra calls to the function return instantly.
-  void Output::doSync(bool force){
-    if (!statComm){return;}
-    if (recursingSync){return;}
-    recursingSync = true;
-    if (statComm.getSync() == 2 || force){
-      if (getStatsName() == capa["name"].asStringRef() && Triggers::shouldTrigger("USER_NEW", streamName)){
-        // sync byte 0 = no sync yet, wait for sync from controller...
-        char initialSync = 0;
-        // attempt to load sync status from session cache in shm
-        {
-          IPC::semaphore cacheLock(SEM_SESSCACHE, O_RDWR, ACCESSPERMS, 16);
-          if (cacheLock){cacheLock.wait();}
-          IPC::sharedPage shmSessions(SHM_SESSIONS, SHM_SESSIONS_SIZE, false, false);
-          if (shmSessions.mapped){
-            char shmEmpty[SHM_SESSIONS_ITEM];
-            memset(shmEmpty, 0, SHM_SESSIONS_ITEM);
-            std::string host;
-            Socket::hostBytesToStr(statComm.getHost().data(), 16, host);
-            uint32_t shmOffset = 0;
-            const std::string &cName = capa["name"].asStringRef();
-            while (shmOffset + SHM_SESSIONS_ITEM < SHM_SESSIONS_SIZE){
-              // compare crc
-              if (*(uint32_t*)(shmSessions.mapped + shmOffset) == crc){
-                // compare stream name
-                if (strncmp(shmSessions.mapped + shmOffset + 4, streamName.c_str(), 100) == 0){
-                  // compare connector
-                  if (strncmp(shmSessions.mapped + shmOffset + 104, cName.c_str(), 20) == 0){
-                    // compare host
-                    if (strncmp(shmSessions.mapped + shmOffset + 124, host.c_str(), 40) == 0){
-                      initialSync = shmSessions.mapped[shmOffset + 164];
-                      HIGH_MSG("Instant-sync from session cache to %u", (unsigned int)initialSync);
-                      break;
-                    }
-                  }
-                }
-              }
-              // stop if we reached the end
-              if (memcmp(shmSessions.mapped + shmOffset, shmEmpty, SHM_SESSIONS_ITEM) == 0){
-                break;
-              }
-              shmOffset += SHM_SESSIONS_ITEM;
-            }
-          }
-          if (cacheLock){cacheLock.post();}
-        }
-        unsigned int i = 0;
-        statComm.setSync(initialSync);
-        // wait max 10 seconds for sync
-        while ((!statComm.getSync() || statComm.getSync() == 2) && i++ < 100){
-          Util::wait(100);
-          stats(true);
-        }
-        HIGH_MSG("USER_NEW sync achieved: %u", statComm.getSync());
-        // 1 = check requested (connection is new)
-        if (statComm.getSync() == 1){
-          std::string payload = streamName + "\n" + getConnectedHost() + "\n" +
-                                JSON::Value(crc).asString() + "\n" + capa["name"].asStringRef() +
-                                "\n" + reqUrl + "\n" + statComm.getSessId();
-          if (!Triggers::doTrigger("USER_NEW", payload, streamName)){
-            onFail("Not allowed to play (USER_NEW)");
-            statComm.setSync(100); // 100 = denied
-          }else{
-            statComm.setSync(10); // 10 = accepted
-          }
-        }
-        // 100 = denied
-        if (statComm.getSync() == 100){onFail("Not allowed to play (USER_NEW cache)");}
-        if (statComm.getSync() == 0){
-          onFail("Not allowed to play (USER_NEW init timeout)", true);
-        }
-        if (statComm.getSync() == 2){
-          onFail("Not allowed to play (USER_NEW re-init timeout)", true);
-        }
-        // anything else = accepted
-      }else{
-        statComm.setSync(10); // auto-accept if no trigger
-      }
-    }
-    recursingSync = false;
   }
 
   std::string Output::getConnectedHost(){return myConn.getHost();}
@@ -433,10 +348,10 @@ namespace Mist{
 
     //Connect to stats reporting, if not connected already
     if (!statComm){
-      statComm.reload();
+      statComm.reload(streamName, getConnectedHost(), sid, getStatsName(), reqUrl);
       stats(true);
     }
-
+    
     //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
 
@@ -986,7 +901,7 @@ namespace Mist{
         INFO_MSG("Will split recording every %lld seconds", atoll(targetParams["split"].c_str()));
         targetParams["nxt-split"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
       }
-      // Duration to record in seconds. Overrides recstop.
+      // Duration to record in seconds. Oversides recstop.
       if (targetParams.count("duration")){
         long long endRec = atoll(targetParams["duration"].c_str()) * 1000;
         targetParams["recstop"] = JSON::Value((int64_t)(seekPos + endRec)).asString();
@@ -1301,6 +1216,9 @@ namespace Mist{
   /// request URL (if any)
   /// ~~~~~~~~~~~~~~~
   int Output::run(){
+    Comms::sessionViewerMode = Util::getGlobalConfig("sessionViewerMode").asInt();
+    Comms::sessionInputMode = Util::getGlobalConfig("sessionInputMode").asInt();
+    Comms::sessionOutputMode = Util::getGlobalConfig("sessionOutputMode").asInt();
     /*LTS-START*/
     // Connect to file target, if needed
     if (isFileTarget()){
@@ -1507,6 +1425,8 @@ namespace Mist{
     /*LTS-END*/
 
     disconnect();
+    stats(true);
+    userSelect.clear();
     myConn.close();
     return 0;
   }
@@ -1824,7 +1744,7 @@ namespace Mist{
     // also cancel if it has been less than a second since the last update
     // unless force is set to true
     uint64_t now = Util::bootSecs();
-    if (now == lastStats && !force){return;}
+    if (now <= lastStats && !force){return;}
 
     if (isRecording()){
       if(lastPushUpdate == 0){
@@ -1863,13 +1783,17 @@ namespace Mist{
       }
     }
 
-    if (!statComm){statComm.reload();}
-    if (!statComm){return;}
+    if (!statComm){statComm.reload(streamName, getConnectedHost(), sid, getStatsName(), reqUrl, sessionMode);}
+    if (!statComm){return;} 
+    if (statComm.getExit()){
+      onFail("Shutting down since this session is not allowed to view this stream");
+      return;
+    }
 
     lastStats = now;
 
-    VERYHIGH_MSG("Writing stats: %s, %s, %u, %" PRIu64 ", %" PRIu64, getConnectedHost().c_str(), streamName.c_str(),
-             crc & 0xFFFFFFFFu, myConn.dataUp(), myConn.dataDown());
+    VERYHIGH_MSG("Writing stats: %s, %s, %s, %" PRIu64 ", %" PRIu64, getConnectedHost().c_str(), streamName.c_str(),
+             sid.c_str(), myConn.dataUp(), myConn.dataDown());
     /*LTS-START*/
     if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
       onFail("Shutting down on controller request");
@@ -1877,28 +1801,20 @@ namespace Mist{
     }
     /*LTS-END*/
     statComm.setNow(now);
-    statComm.setStream(streamName);
-    statComm.setConnector(getStatsName());
     connStats(now, statComm);
     statComm.setLastSecond(thisPacket ? thisPacket.getTime() : 0);
-    if (!statComm.getCRC()){
-      statComm.setHost(getConnectedBinHost());
-      statComm.setCRC(crc);
-    }
 
     /*LTS-START*/
     // Tag the session with the user agent
     if (newUA && ((now - myConn.connTime()) >= uaDelay || !myConn) && UA.size()){
       std::string APIcall =
-          "{\"tag_sessid\":{\"" + statComm.getSessId() + "\":" + JSON::string_escape("UA:" + UA) + "}}";
+          "{\"tag_sessid\":{\"" + statComm.sessionId + "\":" + JSON::string_escape("UA:" + UA) + "}}";
       Socket::UDPConnection uSock;
       uSock.SetDestination(UDP_API_HOST, UDP_API_PORT);
       uSock.SendNow(APIcall);
       newUA = false;
     }
     /*LTS-END*/
-
-    doSync();
 
     if (isPushing()){
       for (std::map<size_t, Comms::Users>::iterator it = userSelect.begin(); it != userSelect.end(); it++){
@@ -1915,7 +1831,7 @@ namespace Mist{
     }
   }
 
-  void Output::connStats(uint64_t now, Comms::Statistics &statComm){
+  void Output::connStats(uint64_t now, Comms::Connections &statComm){
     statComm.setUp(myConn.dataUp());
     statComm.setDown(myConn.dataDown());
     statComm.setTime(now - myConn.connTime());

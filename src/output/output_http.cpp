@@ -58,7 +58,6 @@ namespace Mist{
   }
 
   void HTTPOutput::onFail(const std::string &msg, bool critical){
-    INFO_MSG("Failing '%s': %s", H.url.c_str(), msg.c_str());
     if (!webSock && !isRecording() && !responded){
       H.Clean(); // make sure no parts of old requests are left in any buffers
       H.SetHeader("Server", APPIDENT);
@@ -263,6 +262,7 @@ namespace Mist{
         reqUrl = qUrl.getUrl();
       }
       /*LTS-END*/
+      if (H.hasHeader("User-Agent")){UA = H.GetHeader("User-Agent");}
 
       if (H.GetVar("audio") != ""){targetParams["audio"] = H.GetVar("audio");}
       if (H.GetVar("video") != ""){targetParams["video"] = H.GetVar("video");}
@@ -292,6 +292,24 @@ namespace Mist{
           realTime = 1000 / multiplier;
         }else{
           realTime = 0;
+        }
+      }
+      // Get session ID cookie or generate a random one if it wasn't set
+      if (H.GetVar("sid") != ""){
+        sid = H.GetVar("sid");
+      }
+      if (!sid.size()){
+        std::map<std::string, std::string> storage;
+        const std::string koekjes = H.GetHeader("Cookie");
+        HTTP::parseVars(koekjes, storage, "; ");
+        if (storage.count("sid")){
+          // Get sid cookie, which is used to divide connections into sessions
+          sid = storage.at("sid");
+          WARN_MSG("FOUND SID COOKIE '%s'", sid.c_str());
+        }else{
+          // Else generate one
+          const std::string newSid = UA + JSON::Value(getpid()).asString();
+          sid = JSON::Value(checksum::crc32(0, newSid.data(), newSid.size())).asString();
         }
       }
       // Handle upgrade to websocket if the output supports it
@@ -345,6 +363,9 @@ namespace Mist{
   void HTTPOutput::respondHTTP(const HTTP::Parser & req, bool headersOnly){
     //We generally want the CORS headers to be set for all responses
     H.setCORSHeaders();
+    if (sid.size()){
+      H.SetHeader("Set-Cookie", "sid=" + sid + "; Max-Age=600");
+    }
     //Set attachment header to force download, if applicable
     if (req.GetVar("dl").size()){
       //If we want to download, and the string contains a dot, use as-is.

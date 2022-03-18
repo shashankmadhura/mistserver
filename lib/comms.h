@@ -27,6 +27,10 @@
   }
 
 namespace Comms{
+  extern uint8_t sessionViewerMode;
+  extern uint8_t sessionInputMode;
+  extern uint8_t sessionOutputMode;
+
   class Comms{
   public:
     Comms();
@@ -64,20 +68,20 @@ namespace Comms{
     Util::FieldAccX pid;
   };
 
-  class Statistics : public Comms{
+  class Connections : public Comms{
   public:
-    Statistics();
-    operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
+    void reload(std::string streamName, std::string ip, std::string sid, std::string protocol, std::string reqUrl, bool _master = false, bool reIssue = false);
     void unload();
-    void reload(bool _master = false, bool reIssue = false);
+    operator bool() const{return dataPage.mapped && (master || index != INVALID_RECORD_INDEX);}
+    std::string generateSession(std::string streamName, std::string ip, std::string sid, std::string connector, uint64_t sessionMode);
+    std::string sessionId;
+
+    void setExit();
+    bool getExit();
+    
     virtual void addFields();
     virtual void nullFields();
     virtual void fieldAccess();
-
-    uint8_t getSync() const;
-    uint8_t getSync(size_t idx) const;
-    void setSync(uint8_t _sync);
-    void setSync(uint8_t _sync, size_t idx);
 
     uint64_t getNow() const;
     uint64_t getNow(size_t idx) const;
@@ -118,11 +122,7 @@ namespace Comms{
     std::string getConnector(size_t idx) const;
     void setConnector(std::string _connector);
     void setConnector(std::string _connector, size_t idx);
-
-    uint32_t getCRC() const;
-    uint32_t getCRC(size_t idx) const;
-    void setCRC(uint32_t _crc);
-    void setCRC(uint32_t _crc, size_t idx);
+    bool hasConnector(size_t idx, std::string protocol);
 
     uint64_t getPacketCount() const;
     uint64_t getPacketCount(size_t idx) const;
@@ -139,11 +139,7 @@ namespace Comms{
     void setPacketRetransmitCount(uint64_t _retransmit);
     void setPacketRetransmitCount(uint64_t _retransmit, size_t idx);
 
-    std::string getSessId() const;
-    std::string getSessId(size_t index) const;
-
-  private:
-    Util::FieldAccX sync;
+  protected:
     Util::FieldAccX now;
     Util::FieldAccX time;
     Util::FieldAccX lastSecond;
@@ -152,7 +148,8 @@ namespace Comms{
     Util::FieldAccX host;
     Util::FieldAccX stream;
     Util::FieldAccX connector;
-    Util::FieldAccX crc;
+    Util::FieldAccX sessId;
+    Util::FieldAccX tags;
     Util::FieldAccX pktcount;
     Util::FieldAccX pktloss;
     Util::FieldAccX pktretrans;
@@ -185,5 +182,24 @@ namespace Comms{
 
     Util::FieldAccX track;
     Util::FieldAccX keyNum;
+  };
+
+  class Sessions : public Connections{
+    public:
+      Sessions();
+      void reload(bool _master = false, bool reIssue = false);
+      std::string getSessId() const;
+      std::string getSessId(size_t idx) const;
+      void setSessId(std::string _sid);
+      void setSessId(std::string _sid, size_t idx);
+      bool sessIdExists(std::string _sid);
+      virtual void addFields();
+      virtual void nullFields();
+      virtual void fieldAccess();
+
+      std::string getTags() const;
+      std::string getTags(size_t idx) const;
+      void setTags(std::string _sid);
+      void setTags(std::string _sid, size_t idx);
   };
 }// namespace Comms

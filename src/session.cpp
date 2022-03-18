@@ -190,7 +190,7 @@ int main(int argc, char **argv){
   hostLastActive[thisHost] = 0;
   streamLastActive[thisStreamName] = 0;
   // Open the shared memory page containing statistics for each individual connection in this session
-  connections.reload(thisStreamName, thisHost, thisSid, thisProtocol, thisReqUrl, true);
+  connections.reload(thisSessionId, true);
   sessionLock.post();
 
   // Determine session type, since triggers only get run for viewer type sessions

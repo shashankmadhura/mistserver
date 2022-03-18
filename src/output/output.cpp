@@ -1787,6 +1787,7 @@ namespace Mist{
     if (!statComm){return;} 
     if (statComm.getExit()){
       onFail("Shutting down since this session is not allowed to view this stream");
+      statComm.unload();
       return;
     }
 
@@ -1797,6 +1798,7 @@ namespace Mist{
     /*LTS-START*/
     if (statComm.getStatus() & COMM_STATUS_REQDISCONNECT){
       onFail("Shutting down on controller request");
+      statComm.unload();
       return;
     }
     /*LTS-END*/

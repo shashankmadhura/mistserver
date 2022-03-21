@@ -191,7 +191,6 @@ int main(int argc, char **argv){
   streamLastActive[thisStreamName] = 0;
   // Open the shared memory page containing statistics for each individual connection in this session
   connections.reload(thisSessionId, true);
-  sessionLock.post();
 
   // Determine session type, since triggers only get run for viewer type sessions
   uint64_t thisType = 0;
@@ -200,7 +199,6 @@ int main(int argc, char **argv){
   } else if (thisSessionId[0] == 'O'){
     thisType = 2;
   }
-  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   // Do a USER_NEW trigger if it is defined for this stream
   if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
@@ -214,6 +212,11 @@ int main(int argc, char **argv){
       connections.finishAll();
     }
   }
+
+  //start allowing viewers
+  sessionLock.post();
+
+  INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   uint64_t lastSecond = 0;
   uint64_t now = 0;

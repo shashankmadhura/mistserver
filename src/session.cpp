@@ -219,6 +219,8 @@ int main(int argc, char **argv){
   INFO_MSG("Started new session %s in %.3f ms", thisSessionId.c_str(), (double)Util::getMicros(bootTime)/1000.0);
 
   uint64_t lastSecond = 0;
+  uint64_t bootSecond = Util::bootSecs();
+  uint64_t seenSecond = bootSecond;
   uint64_t now = 0;
   uint64_t time = 0;
   uint64_t down = 0;
@@ -263,6 +265,7 @@ int main(int argc, char **argv){
       pktcount += connections.getPacketCount(idx);
       pktloss += connections.getPacketLostCount(idx);
       pktretrans += connections.getPacketRetransmitCount(idx);
+      if (connections.getNow(idx) > seenSecond){seenSecond = connections.getNow(idx);}
     }
 
     // Convert connector duration to string
@@ -397,13 +400,12 @@ int main(int argc, char **argv){
       streamTimes << (streamTimes.str().size() ? "," : "") << it->second;
     }
 
-    const uint64_t duration = lastSecond - (bootTime / 1000);
     std::stringstream summary;
     summary << thisSessionId << "\n"
           << streamSummary.str() << "\n"
           << connectorSummary.str() << "\n"
           << hostSummary.str() << "\n"
-          << duration << "\n"
+          << (seenSecond - bootSecond) << "\n"
           << up << "\n"
           << down << "\n"
           << sessions.getTags() << "\n"

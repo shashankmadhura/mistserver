@@ -31,6 +31,10 @@ namespace Mist{
       if (!hasSubs && M.getCodec(it->first) == "subtitle"){hasSubs = true;}
     }
     std::string sessId;
+    if (hasSessionIDs()){
+      if (sessId.size()){sessId += "&";}else{sessId += "?";}
+      sessId += "sessId=" + sid;
+    }
     if (origin.size()){
       if (sessId.size()){sessId += "&";}else{sessId += "?";}
       sessId += "origin=" + origin;
@@ -267,9 +271,15 @@ namespace Mist{
     cfg->addConnectorOptions(8081, capa);
   }
 
+  void OutHLS::preHTTP(){
+    if (H.GetVar("sessId").size()){
+      sid = H.GetVar("sessId");
+    }
+    HTTPOutput::preHTTP();
+  }
+
   void OutHLS::onHTTP(){
     std::string method = H.method;
-    std::string sessId = H.GetVar("sessId");
     origin = H.GetVar("origin");
 
     if (H.url == "/crossdomain.xml"){
@@ -409,7 +419,7 @@ namespace Mist{
         if (config->getString("chunkpath").size()){
           manifest = liveIndex(idx, "", HTTP::URL(config->getString("chunkpath")).link(reqUrl).link("./").getUrl());
         }else{
-          manifest = liveIndex(idx, sessId);
+          manifest = liveIndex(idx, sid);
         }
       }
       H.SetBody(manifest);

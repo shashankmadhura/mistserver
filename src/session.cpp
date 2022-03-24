@@ -36,13 +36,16 @@ void handleSignal(int signum){
   }
 }
 
+const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 void userOnActive(uint64_t &currentConnections, uint64_t &seenSecond, uint64_t &lastSecond, Comms::Connections &connections, size_t idx){
   ++currentConnections;
   uint64_t thisLastSecond = connections.getLastSecond(idx);
   uint64_t timeDelta = connections.getTime(idx) - connTime[idx];
   std::string thisConnector = connections.getConnector(idx);
   std::string thisStreamName = connections.getStream(idx);
-  std::string thisHost = connections.getHost(idx);
+  const std::string& thisHost = connections.getHost(idx);
+
   if (connections.getNow(idx) > seenSecond){seenSecond = connections.getNow(idx);}
   if (thisLastSecond > lastSecond){lastSecond = thisLastSecond;}
   // Save info on the latest active stream, protocol and host separately
@@ -51,12 +54,12 @@ void userOnActive(uint64_t &currentConnections, uint64_t &seenSecond, uint64_t &
     if (connectorLastActive[thisConnector] < thisLastSecond){connectorLastActive[thisConnector] = thisLastSecond;}
   }
   if (thisStreamName != ""){
-    streamCount[thisStreamName] += connections.getTime(idx);
+    streamCount[thisStreamName] += timeDelta;
     if (streamLastActive[thisStreamName] < thisLastSecond){streamLastActive[thisStreamName] = thisLastSecond;}
   }
-  if (thisHost != ""){
-    hostCount[thisHost] += connections.getTime(idx);
-    if (hostLastActive[thisHost] < thisLastSecond){hostLastActive[thisHost] = thisLastSecond;}
+  if (memcmp(thisHost.data(), nullAddress, 16)){
+    hostCount[thisHost] += timeDelta;
+    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < thisLastSecond){hostLastActive[thisHost] = thisLastSecond;}
   }
   // Sanity checks
   if (connections.getTime(idx) < connTime[idx]){
@@ -181,11 +184,12 @@ int main(int argc, char **argv){
   const uint64_t bootTime = Util::getMicros();
   // Get session ID, session mode and other variables used as payload for the USER_NEW and USER_END triggers
   const std::string thisStreamName = config.getString("streamname");
-  const std::string thisHost = config.getString("ip");
   const std::string thisSid = config.getString("sid");
   const std::string thisProtocol = config.getString("protocol");
   const std::string thisReqUrl = config.getString("requrl");
   const std::string thisSessionId = config.getString("sessionid");
+  std::string thisHost;
+  Socket::hostBytesToStr(config.getString("ip").data(), 16, thisHost);
 
   if (thisSessionId == "" || thisProtocol == "" || thisStreamName == ""){
     FAIL_MSG("Given the following incomplete arguments: SessionId: '%s', protocol: '%s', stream name: '%s'. Aborting opening a new session",
@@ -230,7 +234,6 @@ int main(int argc, char **argv){
   sessions.setSessId(thisSessionId);
   sessions.setStream(thisStreamName);
   connectorLastActive[thisProtocol] = 0;
-  hostLastActive[thisHost] = 0;
   streamLastActive[thisStreamName] = 0;
   // Open the shared memory page containing statistics for each individual connection in this session
   connections.reload(thisSessionId, true);
@@ -245,7 +248,7 @@ int main(int argc, char **argv){
 
   // Do a USER_NEW trigger if it is defined for this stream
   if (!thisType && Triggers::shouldTrigger("USER_NEW", thisStreamName)){
-    std::string payload = thisStreamName + "\n" + thisHost + "\n" +
+    std::string payload = thisStreamName + "\n" + config.getString("ip") + "\n" +
                           thisSid + "\n" + thisProtocol +
                           "\n" + thisReqUrl + "\n" + thisSessionId;
     if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
@@ -283,17 +286,20 @@ int main(int argc, char **argv){
       }
     }
     // Set active host to last active or 0 if there were various hosts active recently
-    std::string thisHost = "";
+    std::string thisHost;
     for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
           it != hostLastActive.end(); ++it){
       if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (thisHost == ""){
+        if (!thisHost.size()){
           thisHost = it->first;
         }else if (thisHost != it->first){
-          thisHost = std::string((size_t)16, (char)'\000');
+          thisHost = nullAddress;
           break;
         }
       }
+    }
+    if (!thisHost.size()){
+      thisHost = nullAddress;
     }
     // Set active stream name to last active or "" if there were multiple streams active recently
     std::string thisStream = "";
@@ -308,7 +314,6 @@ int main(int argc, char **argv){
         }
       }
     }
-
     // Write summary to global statistics
     sessions.setTime(globalTime);
     sessions.setDown(globalDown);
@@ -325,9 +330,11 @@ int main(int argc, char **argv){
     // Retrigger USER_NEW if a re-sync was requested
     if (!thisType && forceTrigger){
       forceTrigger = false;
+      std::string host;
+      Socket::hostBytesToStr(thisHost.data(), 16, host);
       if (Triggers::shouldTrigger("USER_NEW", thisStreamName)){
         INFO_MSG("Triggering USER_NEW for stream %s", thisStreamName.c_str());
-        std::string payload = thisStreamName + "\n" + thisHost + "\n" +
+        std::string payload = thisStreamName + "\n" + host + "\n" +
                               thisSid + "\n" + thisProtocol +
                               "\n" + thisReqUrl + "\n" + thisSessionId;
         if (!Triggers::doTrigger("USER_NEW", payload, thisStreamName)){
@@ -366,7 +373,9 @@ int main(int argc, char **argv){
     std::stringstream hostSummary;
     std::stringstream hostTimes;
     for (std::map<std::string, uint64_t>::iterator it = hostCount.begin(); it != hostCount.end(); ++it){
-      hostSummary << (hostSummary.str().size() ? "," : "") << it->first;
+      std::string host;
+      Socket::hostBytesToStr(it->first.data(), 16, host);
+      hostSummary << (hostSummary.str().size() ? "," : "") << host;
       hostTimes << (hostTimes.str().size() ? "," : "") << it->second;
     }
     std::stringstream streamSummary;

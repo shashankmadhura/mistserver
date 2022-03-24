@@ -1783,12 +1783,11 @@ namespace Mist{
     if (!statComm){
       statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
     }
-    if (!statComm){return;} 
-    if (statComm.getExit()){
+    if (!statComm || statComm.getExit()){
       onFail("Shutting down since this session is not allowed to view this stream");
       statComm.unload();
       return;
-    }
+    } 
 
     lastStats = now;
 

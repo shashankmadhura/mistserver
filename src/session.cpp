@@ -405,6 +405,7 @@ int main(int argc, char **argv){
     // Keep session invalidated for 10 minutes, or until the session stops
     while (config.is_active && Util::bootSecs() - sleepStart < 600){
       Util::sleep(1000);
+      if (forceTrigger){break;}
     }
   }
   INFO_MSG("Shutting down session %s: %s", thisSessionId.c_str(), Util::exitReason);

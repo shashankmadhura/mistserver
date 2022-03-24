@@ -40,26 +40,26 @@ const char nullAddress[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 void userOnActive(uint64_t &currentConnections, uint64_t &seenSecond, uint64_t &lastSecond, Comms::Connections &connections, size_t idx){
   ++currentConnections;
-  uint64_t thisLastSecond = connections.getLastSecond(idx);
+  uint64_t now = connections.getNow(idx);
   uint64_t timeDelta = connections.getTime(idx) - connTime[idx];
   std::string thisConnector = connections.getConnector(idx);
   std::string thisStreamName = connections.getStream(idx);
   const std::string& thisHost = connections.getHost(idx);
 
   if (connections.getNow(idx) > seenSecond){seenSecond = connections.getNow(idx);}
-  if (thisLastSecond > lastSecond){lastSecond = thisLastSecond;}
+  if (now > lastSecond){lastSecond = now;}
   // Save info on the latest active stream, protocol and host separately
   if (thisConnector != ""){
     connectorCount[thisConnector] += timeDelta;
-    if (connectorLastActive[thisConnector] < thisLastSecond){connectorLastActive[thisConnector] = thisLastSecond;}
+    if (connectorLastActive[thisConnector] < now){connectorLastActive[thisConnector] = now;}
   }
   if (thisStreamName != ""){
     streamCount[thisStreamName] += timeDelta;
-    if (streamLastActive[thisStreamName] < thisLastSecond){streamLastActive[thisStreamName] = thisLastSecond;}
+    if (streamLastActive[thisStreamName] < now){streamLastActive[thisStreamName] = now;}
   }
   if (memcmp(thisHost.data(), nullAddress, 16)){
     hostCount[thisHost] += timeDelta;
-    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < thisLastSecond){hostLastActive[thisHost] = thisLastSecond;}
+    if (!hostLastActive.count(thisHost) || hostLastActive[thisHost] < now){hostLastActive[thisHost] = now;}
   }
   // Sanity checks
   if (connections.getTime(idx) < connTime[idx]){
@@ -306,7 +306,7 @@ int main(int argc, char **argv){
     for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
           it != streamLastActive.end(); ++it){
       if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (thisStream == ""){
+        if (!thisStream.size()){
           thisStream = it->first;
         }else if (thisStream != it->first){
           thisStream = "";

@@ -347,11 +347,8 @@ namespace Mist{
     isInitialized = true;
 
     //Connect to stats reporting, if not connected already
-    if (!statComm){
-      statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
-      stats(true);
-    }
-    
+    stats(true);
+
     //push inputs do not need to wait for stream to be ready for playback
     if (isPushing()){return;}
 
@@ -1783,7 +1780,9 @@ namespace Mist{
       }
     }
 
-    if (!statComm){statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl, sessionMode);}
+    if (!statComm){
+      statComm.reload(streamName, getConnectedBinHost(), sid, getStatsName(), reqUrl);
+    }
     if (!statComm){return;} 
     if (statComm.getExit()){
       onFail("Shutting down since this session is not allowed to view this stream");

@@ -344,7 +344,7 @@ void Controller::SharedMemStats(void *config){
         uint64_t cutOffPoint = Util::bootSecs() - STAT_CUTOFF;
         for (std::map<std::string, statSession>::iterator it = sessions.begin(); it != sessions.end(); it++){
           // This part handles ending sessions, keeping them in cache for now
-          if (it->second.getEnd() < cutOffPoint && it->second.getEnd() < cutOffPoint){
+          if (it->second.getEnd() < cutOffPoint){
             viewSecondsTotal += it->second.getConnTime();
             mustWipe.push_back(it->first);
             // Don't count this session as a viewer

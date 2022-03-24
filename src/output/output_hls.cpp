@@ -288,6 +288,7 @@ namespace Mist{
       H.setCORSHeaders();
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         return;
       }
       H.SetBody("<?xml version=\"1.0\"?><!DOCTYPE cross-domain-policy SYSTEM "
@@ -295,6 +296,7 @@ namespace Mist{
                 "cross-domain-policy.dtd\"><cross-domain-policy><allow-access-from domain=\"*\" "
                 "/><site-control permitted-cross-domain-policies=\"all\"/></cross-domain-policy>");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }// crossdomain.xml
 
@@ -315,6 +317,7 @@ namespace Mist{
       }
       H.SetBody("");
       H.SendResponse("200", "OK", myConn);
+      responded = true;
       return;
     }
 
@@ -345,6 +348,7 @@ namespace Mist{
           H.setCORSHeaders();
           H.SetBody("The HLS URL wasn't understood - what did you want, exactly?\n");
           myConn.SendNow(H.BuildResponse("404", "URL mismatch"));
+          responded = true;
           return;
         }
         userSelect.clear();
@@ -365,6 +369,7 @@ namespace Mist{
                   "served.\n");
         myConn.SendNow(H.BuildResponse("404", "Fragment out of range"));
         WARN_MSG("Fragment @ %" PRIu64 " too old", from);
+        responded = true;
         return;
       }
 
@@ -379,10 +384,12 @@ namespace Mist{
       }
       if (method == "OPTIONS" || method == "HEAD"){
         H.SendResponse("200", "OK", myConn);
+        responded = true;
         return;
       }
 
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
+      responded = true;
       // we assume whole fragments - but timestamps may be altered at will
       uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
       contPAT = fragIndice; // PAT continuity counter
@@ -424,6 +431,7 @@ namespace Mist{
       }
       H.SetBody(manifest);
       H.SendResponse("200", "OK", myConn);
+      responded = true;
     }
   }
 

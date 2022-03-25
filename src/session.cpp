@@ -277,44 +277,7 @@ int main(int argc, char **argv){
     // Loop through all connection entries to get a summary of statistics
     COMM_LOOP(connections, userOnActive(currentConnections, seenSecond, lastSecond, connections, id), userOnDisconnect(connections, id));
 
-    // Convert active protocols to string
-    std::stringstream connectorSummary;
-    for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
-          it != connectorLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
-      }
-    }
-    // Set active host to last active or 0 if there were various hosts active recently
-    std::string thisHost;
-    for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
-          it != hostLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (!thisHost.size()){
-          thisHost = it->first;
-        }else if (thisHost != it->first){
-          thisHost = nullAddress;
-          break;
-        }
-      }
-    }
-    if (!thisHost.size()){
-      thisHost = nullAddress;
-    }
-    // Set active stream name to last active or "" if there were multiple streams active recently
-    std::string thisStream = "";
-    for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
-          it != streamLastActive.end(); ++it){
-      if (lastSecond - it->second < STATS_DELAY * 1000){
-        if (!thisStream.size()){
-          thisStream = it->first;
-        }else if (thisStream != it->first){
-          thisStream = "";
-          break;
-        }
-      }
-    }
-    // Write summary to global statistics
+
     sessions.setTime(globalTime);
     sessions.setDown(globalDown);
     sessions.setUp(globalUp);
@@ -322,10 +285,58 @@ int main(int argc, char **argv){
     sessions.setPacketLostCount(globalPktloss);
     sessions.setPacketRetransmitCount(globalPktretrans);
     sessions.setLastSecond(lastSecond);
-    sessions.setConnector(connectorSummary.str());
     sessions.setNow(now);
-    sessions.setHost(thisHost);
-    sessions.setStream(thisStream);
+
+    if (lastSecond){
+      {
+        // Convert active protocols to string
+        std::stringstream connectorSummary;
+        for (std::map<std::string, uint64_t>::iterator it = connectorLastActive.begin();
+              it != connectorLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            connectorSummary << (connectorSummary.str().size() ? "," : "") << it->first;
+          }
+        }
+        sessions.setConnector(connectorSummary.str());
+      }
+
+      {
+        // Set active host to last active or 0 if there were various hosts active recently
+        std::string thisHost;
+        for (std::map<std::string, uint64_t>::iterator it = hostLastActive.begin();
+              it != hostLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            if (!thisHost.size()){
+              thisHost = it->first;
+            }else if (thisHost != it->first){
+              thisHost = nullAddress;
+              break;
+            }
+          }
+        }
+        if (!thisHost.size()){
+          thisHost = nullAddress;
+        }
+        sessions.setHost(thisHost);
+      }
+
+      {
+        // Set active stream name to last active or "" if there were multiple streams active recently
+        std::string thisStream = "";
+        for (std::map<std::string, uint64_t>::iterator it = streamLastActive.begin();
+              it != streamLastActive.end(); ++it){
+          if (lastSecond - it->second < STATS_DELAY){
+            if (!thisStream.size()){
+              thisStream = it->first;
+            }else if (thisStream != it->first){
+              thisStream = "";
+              break;
+            }
+          }
+        }
+        sessions.setStream(thisStream);
+      }
+    }
 
     // Retrigger USER_NEW if a re-sync was requested
     if (!thisType && forceTrigger){

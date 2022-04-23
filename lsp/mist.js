@@ -2398,9 +2398,6 @@ var UI = {
           debug: mist.data.config.debug,
           accesslog: mist.data.config.accesslog,
           prometheus: mist.data.config.prometheus,
-          sessionViewerMode: mist.data.config.sessionViewerMode,
-          sessionInputMode: mist.data.config.sessionInputMode,
-          sessionOutputMode: mist.data.config.sessionOutputMode,
           defaultStream: mist.data.config.defaultStream,
           trustedproxy: mist.data.config.trustedproxy,
           location: "location" in mist.data.config ? mist.data.config.location : {}
@@ -2530,81 +2527,6 @@ var UI = {
             },
             help: "Make stats available in Prometheus format. These can be accessed via "+host+"/PASSPHRASE or "+host+"/PASSPHRASE.json.",
             LTSonly: true
-          },{
-            type: 'select',
-            label: 'Viewer sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionViewerMode'
-            },
-            help: 'Change the way viewer connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'Input sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionInputMode'
-            },
-            help: 'Change the way input connections are bundled into sessions.'
-          },{
-            type: 'select',
-            label: 'Output sessions',
-            select: [
-              [15, '15 - All connections with the same stream name, viewer ip, player id and protocol are bundled'],
-              [14, '14 - All connections with the same stream name, viewer ip and player id are bundled'],
-              [13, '13 - All connections with the same stream name, viewer ip and protocol are bundled'],
-              [12, '12 - All connections with the same stream name and viewer ip are bundled'],
-              [11, '11 - All connections with the same stream name, player id and protocol are bundled'],
-              [10, '10 - All connections with the same stream name and player id are bundled'],
-              [9, '9 - All connections with the same stream name and protocol are bundled'],
-              [8, '8 - All connections with the same stream name are bundled'],
-              [7, '7 - All connections with the same viewer ip, player id and protocol are bundled'],
-              [6, '6 - All connections with the same viewer ip and player id are bundled'],
-              [5, '5 - All connections with the same viewer ip and protocol are bundled'],
-              [4, '4 - All connections with the same viewer ip are bundled'],
-              [3, '3 - All connections with the same player id and protocol are bundled'],
-              [2, '2 - All connections with the same player id are bundled'],
-              [1, '1 - All connections with the same protocol are bundled']
-            ],
-            pointer: {
-              main: s,
-              index: 'sessionOutputMode'
-            },
-            help: 'Change the way output connections are bundled into sessions.'
           },{
             type: "inputlist",
             label: "Trusted proxies",

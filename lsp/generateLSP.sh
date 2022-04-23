@@ -18,7 +18,7 @@ echo "Minimizing LSP..";
 #if elementIn "lsp/plugins/md5.js" "${CHANGES[@]}" || elementIn "lsp/plugins/cattablesort.js" "${CHANGES[@]}" || elementIn "lsp/mist.js" "${CHANGES[@]}" ; then
   echo "  Generating minified.js.."
   tmp=$(mktemp)
-  java -jar closure-compiler.jar --language_in=ECMASCRIPT6 --warning_level QUIET  plugins/md5.js plugins/cattablesort.js mist.js > $tmp
+  java -jar closure-compiler.jar --language_in=ECMASCRIPT6 --language_out=ECMASCRIPT5 --warning_level QUIET  plugins/md5.js plugins/cattablesort.js mist.js > $tmp
   mv $tmp minified.js
 #fi
 

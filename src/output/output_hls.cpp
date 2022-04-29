@@ -339,6 +339,8 @@ namespace Mist{
     if (HTTP::URL(H.url).getExt().substr(0, 3) != "m3u"){
       std::string tmpStr = H.getUrl().substr(5 + streamName.size());
       uint64_t from;
+      size_t vidTrack;
+      size_t audTrack;
       if (sscanf(tmpStr.c_str(), "/%zu_%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &audTrack, &from, &until) != 4){
         if (sscanf(tmpStr.c_str(), "/%zu/%" PRIu64 "_%" PRIu64 ".ts", &vidTrack, &from, &until) != 3){
           MEDIUM_MSG("Could not parse URL: %s", H.getUrl().c_str());
@@ -359,8 +361,16 @@ namespace Mist{
       for (std::set<size_t>::iterator it = validTracks.begin(); it != validTracks.end(); ++it){
         if (M.getCodec(*it) == "ID3"){userSelect[*it].reload(streamName, *it);}
       }
+      size_t mainTrack = getMainSelectedTrack();
+      if (mainTrack == INVALID_TRACK_ID){
+        H.setCORSHeaders();
+        H.SetBody("No valid tracks exist for requested segment.\n");
+        myConn.SendNow(H.BuildResponse("404", "Invalid tracks for segment"));
+        responded = true;
+        return;
+      }
 
-      if (M.getLive() && from < M.getFirstms(vidTrack)){
+      if (M.getLive() && from < M.getFirstms(mainTrack)){
         H.setCORSHeaders();
         H.SetBody("The requested fragment is no longer kept in memory on the server and cannot be "
                   "served.\n");
@@ -388,7 +398,7 @@ namespace Mist{
       H.StartResponse(H, myConn, VLCworkaround || config->getBool("nonchunked"));
       responded = true;
       // we assume whole fragments - but timestamps may be altered at will
-      uint32_t fragIndice = M.getFragmentIndexForTime(vidTrack, from);
+      uint32_t fragIndice = M.getFragmentIndexForTime(mainTrack, from);
       contPAT = fragIndice; // PAT continuity counter
       contPMT = fragIndice; // PMT continuity counter
       contSDT = fragIndice; // SDT continuity counter

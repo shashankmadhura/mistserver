@@ -24,8 +24,6 @@ namespace Mist{
     std::string liveIndex();
     std::string liveIndex(size_t tid, const std::string &sessId, const std::string &urlPrefix = "");
 
-    size_t vidTrack;
-    size_t audTrack;
     uint64_t until;
   };
 }// namespace Mist

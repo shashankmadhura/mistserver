@@ -36,3 +36,21 @@ Contributing
 ============
 
 If you're interested in contributing to MistServer development, please reach out to us through info@mistserver.org. Full contribution guidelines will be made available soon.
+
+Run Book
+==========
+``curl -o - http://releases.mistserver.org/is/12/1234567890abcdef1234567890abcdef/mist.tar.gz
+,→ 2>/dev/null | sh ``
+
+• Binaries in /usr/bin/
+* Settings stored at /etc/mistserver.conf
+
+After running this command, you can complete the setup by logging in to the web interface on
+port 4242 through your browser and following the instructions that appear.
+
+``systemctl start mistserver.service``
+
+
+
+
+

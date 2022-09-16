@@ -39,8 +39,7 @@ If you're interested in contributing to MistServer development, please reach out
 
 Run Book
 ==========
-``curl -o - http://releases.mistserver.org/is/12/1234567890abcdef1234567890abcdef/mist.tar.gz
-,→ 2>/dev/null | sh ``
+``curl -o - http://releases.mistserver.org/is/12/1234567890abcdef1234567890abcdef/mist.tar.gz 2>/dev/null | sh ``
 
 • Binaries in /usr/bin/
 * Settings stored at /etc/mistserver.conf
